@@ -6,12 +6,12 @@
 using namespace std;
 
 #define PI_180 0.0174532925
-#define SPEEDCONSTANT 1.0 
-#define ROTATIONCONSTANT 1.0
+#define SPEEDCONSTANT 1.0 //TODO: Calibrate
+#define ROTATIONCONSTANT 1.0 //TODO: Calibrate
 
 float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
-float setRotation(float direction);
+void setRotation(float direction);
 void moveBlind(float angle, float distance);
 void rotateBy(float angle);
 void rotateTo(float heading);
