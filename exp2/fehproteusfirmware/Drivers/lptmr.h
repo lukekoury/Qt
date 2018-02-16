@@ -1,0 +1,19 @@
+/*
+ * File:        lptmr.h
+ * Purpose:     Provide common low power timer functions
+ *
+ * Notes:
+ */
+
+#ifndef __LPTMR_H__
+#define __LPTMR_H__
+
+#include "derivative.h"
+/********************************************************************/
+
+/* Function prototypes */
+void time_delay_ms(uint32 );
+
+/********************************************************************/
+
+#endif /* __LPTMR_H__ */
