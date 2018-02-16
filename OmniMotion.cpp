@@ -89,7 +89,8 @@ void moveBlind(float angle, float distance){
 }
 void moveTo(float x, float y){
 	float speed = moveAtAngleRelCourse(atan2(y-currentY, x-currentx), 1.0);
-	//Algorithm? Adjust course halfway through? Within certain distance, go blind?
+	//Algorithm? Adjust course halfway through?
+  //Within certain distance, go blind?
 }
 
 void halt(){
