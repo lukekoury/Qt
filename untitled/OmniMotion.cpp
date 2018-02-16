@@ -4,11 +4,13 @@
 #include <FEHUtility.h>
 #include <FEHRPS.h>
 #include <FEHSD.h>
+#include <string>
 using namespace std;
 
 #define PI_180 0.0174532925
 #define SPEEDCONSTANT 1.0 //TODO: Calibrate
 #define ROTATIONCONSTANT 1.0 //TODO: Calibrate
+#define BLANKDOC -123.456
 
 float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
@@ -18,6 +20,7 @@ void rotateBy(float angle);
 void rotateTo(float heading);
 void halt();
 void moveTo(float x, float y);
+void doc(string, float, float, float, float);
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -53,9 +56,14 @@ bool updatePosition(){
   return false;
 }
 
-void doc(const char * text, float a=nan, float b=nan, float c=nan){
-  LCD.WriteLine(text+to_string(a)+to_string(b)+to_string(c));
-  SD.Printf(to_string(TimeNow())+text+to_string(a)+to_string(b)+to_string(c));
+void doc(string text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC){
+  string s=text;
+  if(a!=BLANKDOC) s+=to_string(a)+" ";
+  if(b!=BLANKDOC) s+=to_string(b)+" ";
+  if(c!=BLANKDOC) s+=to_string(c)+" ";
+  if(d!=BLANKDOC) s+=to_string(d)+" ";
+  LCD.WriteLine(s.c_str());
+  SD.Printf(s.c_str());
 }
 
 void setWheels(float fl, float fr, float bl, float br){
@@ -97,7 +105,7 @@ float setVelocityComponents(float right, float forward, float speedPercent){
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
   doc("RelRobot: ", heading, speedPercent);
-	return setVelocityComponents(cos(PI_180 * heading), sin(PI_180*heading), 1.0);
+	return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), 1.0);
 }
 
 float moveAtAngleRelCourse(float heading, float speedPercent){
