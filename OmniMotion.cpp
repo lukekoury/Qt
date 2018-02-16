@@ -12,7 +12,7 @@ using namespace std;
 float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
 float setRotation(float direction);
-void move(float angle, float distance);
+void moveBlind(float angle, float distance);
 void halt();
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
@@ -60,6 +60,32 @@ float moveAtAngleRelCourse(float heading, float speedPercent){
 void setRotation(float direction){
   if(abs(direction)>1) direction/=abs(direction);
   setWheels(direction, direction, direction, direction);
+}
+void rotateBy(float angle){
+	setRotation(angle>0? 1:-1);
+	timeEnd=TimeNow()+angle()/ROTATIONCONSTANT;
+	while(TimeNow()<timeEnd){
+		//Do Stuff while rotating
+	}
+}
+void rotateTo(float heading){
+	currentHeading=0/*ROBOT HEADING*/;
+	if(abs(heading-currentHeading)<180){
+		rotateBy(heading-currentHeading);
+	}else{
+		rotateBy((heading-currenHeading)-360);
+	}
+}
+void moveBlind(float angle, float distance){
+	float speed = moveAtAngleRelCourse(angle, 1.0);
+	float endTime = TimeNow()+distance/Speed;
+	while(timeNow()<endTime){
+		//Do stuff while moving maybe
+	}
+}
+void moveTo(float x, float y){
+	float speed = moveAtAngleRelCourse(atan2(y-currentY, x-currentx), 1.0);
+	//Algorithm? Adjust course halfway through? Within certain distance, go blind?
 }
 
 void halt(){
