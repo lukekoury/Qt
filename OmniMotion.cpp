@@ -6,11 +6,13 @@
 using namespace std;
 
 #define PI_180 0.0174532925
-#define SPEEDCONSTANT 1.0
+#define SPEEDCONSTANT 1.0 
+#define ROTATIONCONSTANT 1.0
 
-void moveAtAngleRelRobot(float heading, float speedPercent)
-void moveAtAngleRelCourse(float heading, float speedPercent);
-void setRotation(float direction);
+float moveAtAngleRelRobot(float heading, float speedPercent);
+float moveAtAngleRelCourse(float heading, float speedPercent);
+float setRotation(float direction);
+void move(float angle, float distance);
 void halt();
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
@@ -21,9 +23,9 @@ FEHMotor motorBR(FEHMotor::Motor3,7.2);
 void setWheels(float fl, float fr, float bl, float br){
   //Sets wheels to given speeds
   //TODO: include calibrations for wheels
-  motorFL.setPercent(100.0*fl);
-  motorFR.setPercent(100.0*fr);
-  motorBL.setPercent(100.0*bl);
+  motorFL.SetPercent(100.0*fl);
+  motorFR.SetPercent(100.0*fr);
+  motorBL.SetPercent(100.0*bl);
   motorBR.setPercent(100.0*br);
 }
 
@@ -52,7 +54,7 @@ float moveAtAngleRelRobot(float heading, float speedPercent){
 }
 
 float moveAtAngleRelCourse(float heading, float speedPercent){
-	return moveAtAngleRelRobot(heading-90/*Robot Orientation*/, speedPercent);
+	return moveAtAngleRelRobot(heading-(0/*Robot Orientation*/), speedPercent);
 }
 
 void setRotation(float direction){
