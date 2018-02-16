@@ -23,6 +23,23 @@ FEHMotor motorFR(FEHMotor::Motor1,7.2);
 FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
+struct {
+  float x;
+  float y;
+  float heading;
+} RobotPosition;
+
+int main(){
+  RPS.InitializeTouchMenu();
+  //example: box starting from top corner
+}
+
+void updatePosition(){
+  RobotPosition.x = X();
+  RobotPosition.y = Y();
+  RobotPosition.heading = Heading();
+}
+
 void setWheels(float fl, float fr, float bl, float br){
   //Sets wheels to given speeds
   //TODO: include calibrations for wheels
@@ -53,7 +70,7 @@ float setVelocityComponents(float right, float forward, float speedPercent){
 }
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
-	return setVelocityComponents(cos(PI_180 * heading), sin(PI_180 * heading), 1.0);
+	return setVelocityComponents(cos(PI_180 * heading), sin(PI_180*heading), 1.0);
 }
 
 float moveAtAngleRelCourse(float heading, float speedPercent){
@@ -66,10 +83,11 @@ void setRotation(float direction){
 }
 void rotateBy(float angle){
 	setRotation(angle>0? 1:-1);
-	timeEnd=TimeNow()+angle()/ROTATIONCONSTANT;
+	timeEnd=TimeNow()+angle/ROTATIONCONSTANT;
 	while(TimeNow()<timeEnd){
 		//Do Stuff while rotating
 	}
+  halt();
 }
 void rotateTo(float heading){
 	currentHeading=0/*ROBOT HEADING*/;
@@ -83,9 +101,7 @@ void rotateTo(float heading){
 void moveBlind(float angle, float distance){
 	float speed = moveAtAngleRelCourse(angle, 1.0);
 	float endTime = TimeNow()+distance/Speed;
-	while(timeNow()<endTime){
-		//Do stuff while moving maybe
-	}
+	while(timeNow()<endTime);
 }
 void moveTo(float x, float y){
 	float speed = moveAtAngleRelCourse(atan2(y-currentY, x-currentx), 1.0);
