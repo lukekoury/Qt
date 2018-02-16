@@ -13,7 +13,10 @@ float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
 float setRotation(float direction);
 void moveBlind(float angle, float distance);
+void rotateBy(float angle);
+void rotateTo(float heading);
 void halt();
+void moveTo(float x, float y);
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -75,6 +78,7 @@ void rotateTo(float heading){
 	}else{
 		rotateBy((heading-currenHeading)-360);
 	}
+	//Maybe check and adjust?
 }
 void moveBlind(float angle, float distance){
 	float speed = moveAtAngleRelCourse(angle, 1.0);
