@@ -29,7 +29,7 @@ ui_*.h
 Makefile*
 *build-*
 
-# compiling_error.txt
+compiling_error.txt
 
 # Qt unit tests
 target_wrapper.*
