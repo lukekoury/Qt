@@ -20,7 +20,7 @@ void rotateBy(float angle);
 void rotateTo(float heading);
 void halt();
 void moveTo(float x, float y);
-void doc(string, float, float, float, float);
+doc(string text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -31,6 +31,7 @@ struct {
   float x;
   float y;
   float heading;
+  int timestamp;
 } RobotPosition;
 
 int main(){
@@ -46,17 +47,22 @@ bool updatePosition(){
   float y = Y();
   float heading = Heading();
   if(abs(x-(-1))>.001){
-    RobotPosition.x = X();
-    RobotPosition.y = Y();
-    RobotPosition.heading = Heading();
-    doc("Position: ", x,y,heading);
-    return true;
+    if(RobotPosition.x == x && RobotPosition.y == y && RobotPosition.heading == heading){
+      //Do not update timestamp if RPS hasn't been updated
+    } else {
+      RobotPosition.x = x;
+      RobotPosition.y = y;
+      RobotPosition.heading = heading;
+      timestamp=TimeNow();
+      doc("Position: ", x,y,heading);
+      return true;
+    }
   }
   doc("Position Update Failed: "x,y,heading);
   return false;
 }
 
-void doc(string text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC){
+void doc(string text, float a, float b, float c, float d){
   string s=text;
   if(a!=BLANKDOC) s+=to_string(a)+" ";
   if(b!=BLANKDOC) s+=to_string(b)+" ";
@@ -105,6 +111,7 @@ float setVelocityComponents(float right, float forward, float speedPercent){
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
   doc("RelRobot: ", heading, speedPercent);
+  //TODO: MAKE SURE THIS IS HOW HEADINGS WORK
 	return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), 1.0);
 }
 
@@ -119,7 +126,8 @@ void setRotation(float direction){
   setWheels(direction, direction, direction, direction);
 }
 void rotateBy(float angle){
-  doc("Rotating by:", angle)
+  doc("Rotating by:", angle);
+  //TODO: MAKE SURE THIS IS HOW HEADINGS WORK
 	setRotation(angle>0? 1:-1);
 	timeEnd=TimeNow()+angle/ROTATIONCONSTANT;
 	while(TimeNow()<timeEnd){
@@ -150,10 +158,25 @@ void moveBlind(float angle, float distance){
 	while(timeNow()<endTime);
   doc("BlindMove finished");
 }
-void moveTo(float x, float y){
-	float speed = moveAtAngleRelCourse(atan2(y-currentY, x-currentx), 1.0);
-	//Algorithm? Adjust course halfway through?
-  //Within certain distance, go blind?
+
+void moveTo1(float x, float y){
+	float speed = moveAtAngleRelCourse(atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
+	float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
+  float halfTime = TimeNow()+(distance/2)/speed;
+  while(TimeNow()<halfTime){
+    updatePosition();
+  }
+  distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
+  if(distance < 3){
+    moveBlind(atan2(y-RobotPosition.x, x-RobotPosition.y), distance);
+  } else {
+    moveTo1(x,y);
+  }
+}
+
+void moveTo2(float x, float y){
+  float speed = moveAtAngleRelCourse(atan2(y-currentY, x-currentx), 1.0);
+
 }
 
 void halt(){
