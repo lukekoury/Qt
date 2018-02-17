@@ -8,8 +8,8 @@
 using namespace std;
 
 #define PI_180 0.0174532925
-#define SPEEDCONSTANT 1.0 //TODO: Calibrate
-#define ROTATIONCONSTANT 1.0 //TODO: Calibrate
+#define SPEEDCONSTANT 12.41 //TODO: Calibrate
+#define ROTATIONCONSTANT 12.41 //TODO: Calibrate
 #define BLANKDOC -123.456
 
 float moveAtAngleRelRobot(float heading, float speedPercent);
@@ -20,7 +20,8 @@ void rotateBy(float angle);
 void rotateTo(float heading);
 void halt();
 void moveTo(float x, float y);
-doc(string text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
+void doc(string text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
+float principal(float x);
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -42,8 +43,17 @@ int main(){
   moveBlind(90,36);
   moveBlind(180,36);
   moveBlind(360,36);
-  //example: box starting from top corner
   CloseLog();
+}
+
+void doc(string text, float a, float b, float c, float d){
+  string s=text;
+  if(a!=BLANKDOC) s+=to_string(a)+" ";
+  if(b!=BLANKDOC) s+=to_string(b)+" ";
+  if(c!=BLANKDOC) s+=to_string(c)+" ";
+  if(d!=BLANKDOC) s+=to_string(d)+" ";
+  LCD.WriteLine(s.c_str());
+  SD.Printf(s.c_str());
 }
 
 bool updatePosition(){
@@ -64,16 +74,6 @@ bool updatePosition(){
   }
   doc("Position Update Failed: "x,y,heading);
   return false;
-}
-
-void doc(string text, float a, float b, float c, float d){
-  string s=text;
-  if(a!=BLANKDOC) s+=to_string(a)+" ";
-  if(b!=BLANKDOC) s+=to_string(b)+" ";
-  if(c!=BLANKDOC) s+=to_string(c)+" ";
-  if(d!=BLANKDOC) s+=to_string(d)+" ";
-  LCD.WriteLine(s.c_str());
-  SD.Printf(s.c_str());
 }
 
 void setWheels(float fl, float fr, float bl, float br){
@@ -103,9 +103,7 @@ float setVelocityComponents(float right, float forward, float speedPercent){
   if(abs(speedPercent)>.001){
     fl*=speedPercent; fr*=speedPercent; br*=speedPercent; bl*=speedPercent;
   }
-
   setWheels(fl,fr,bl,br);
-
   //pythagorean between two components of motion to return speed
   float speed = SPEEDCONSTANT * sqrt(fl*fl+fr*fr);
   doc("Wheels set: ",fl,fr);
@@ -129,20 +127,28 @@ void setRotation(float direction){
   doc("Setting Rotation:", direction);
   setWheels(direction, direction, direction, direction);
 }
+
 void rotateBy(float angle){
   doc("Rotating by:", angle);
   //TODO: MAKE SURE THIS IS HOW HEADINGS WORK
 	setRotation(angle>0? 1:-1);
 	timeEnd=TimeNow()+angle/ROTATIONCONSTANT;
-	while(TimeNow()<timeEnd){
-		//Do Stuff while rotating
-	}
+	while(TimeNow()<timeEnd);
   halt();
+  if(!updatePosition) RobotPosition=principal(RobotPosition+angle);
   doc("Rotation Finished.");
 }
+
+float principal(float x){
+  while(x>=360)x-=360;
+  while(x<0)x+=360;
+  return x;
+}
+
 void rotateTo(float heading){
-  float to = heading%360;
-	float from = RobotPosition.heading%360;
+  updatePosition();
+  float to = principal(heading);
+	float from = principal(RobotPosition.heading);
   float rotationAngle=0;
 	if(abs(to-from)<180){
 		rotationAngle=to-from;
@@ -151,15 +157,21 @@ void rotateTo(float heading){
 	}else if(to<from){
     rotationAngle= (360-from)+to;
   }
-  doc("Rot from/to/by:", from, heading, rotationAngle);
+  doc("Rot from/to/by:", from, to, rotationAngle);
   rotateBy(rotationAngle);
 	//Maybe check and adjust?
 }
+
 void moveBlind(float angle, float distance){
   doc("BlindMove", angle, distance);
 	float speed = moveAtAngleRelCourse(angle, 1.0);
 	float endTime = TimeNow()+distance/speed;
 	while(timeNow()<endTime);
+  if(!updatePosition){//in case RPS fails
+    RobotPosition.x += speed*distance*cos(angle);
+    RobotPosition.y += speed*distance*sin(angle);
+    doc("CalcPosition", RobotPosition.x, RobotPosition.y);
+  }
   doc("BlindMove finished");
 }
 
@@ -170,10 +182,19 @@ void moveTo1(float x, float y){
 	float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
   float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
   while(TimeNow()<halfTime);
-  updatePosition();
+  if(!updatePosition){//in case RPS fails
+    RobotPosition.x += speed*distance*0.5*cos(angle);
+    RobotPosition.y += speed*distance*0.5*sin(angle);
+    doc("CalcPosition", RobotPosition.x, RobotPosition.y);
+  }
   distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
   if(distance < 3/*ADJUST*/){
-    moveBlind(atan2(y-RobotPosition.x, x-RobotPosition.y), distance);
+    moveBlind(atan2(y-RobotPosition.y, x-RobotPosition.x), distance);
+    if(!updatePosition){//in case RPS fails
+      RobotPosition.x = x;
+      RobotPosition.y = y;
+      doc("CalcPosition", RobotPosition.x, RobotPosition.y);
+    }
   } else {
     moveTo1(x,y);
   }
