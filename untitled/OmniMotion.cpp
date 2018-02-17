@@ -38,8 +38,12 @@ int main(){
   RPS.InitializeTouchMenu();
   OpenLog();
   updatePosition();
-  CloseLog();
+  moveBlind(0,36);
+  moveBlind(90,36);
+  moveBlind(180,36);
+  moveBlind(360,36);
   //example: box starting from top corner
+  CloseLog();
 }
 
 bool updatePosition(){
@@ -137,17 +141,17 @@ void rotateBy(float angle){
   doc("Rotation Finished.");
 }
 void rotateTo(float heading){
-  heading %=360;
-	currentHeading=RobotPosition.heading%360;
+  float to = heading%360;
+	float from = RobotPosition.heading%360;
   float rotationAngle=0;
-	if(abs(heading-currentHeading)<180){
-		rotationAngle=heading-currentHeading);
-	}else if(heading>currentHeading){
-		rotationAngle=-currentHeading+(heading-360)
-	}else if(heading<currentHeading){
-    rotationAngle=(360-currentHeading)+heading
+	if(abs(to-from)<180){
+		rotationAngle=to-from;
+	}else if(to>from){
+		rotationAngle= -from+(to-360);
+	}else if(to<from){
+    rotationAngle= (360-from)+to;
   }
-  doc("Rot from/to/by:", currentHeading, heading, rotationAngle);
+  doc("Rot from/to/by:", from, heading, rotationAngle);
   rotateBy(rotationAngle);
 	//Maybe check and adjust?
 }
@@ -160,14 +164,15 @@ void moveBlind(float angle, float distance){
 }
 
 void moveTo1(float x, float y){
+  //ALGORITHM 1
+  updatePosition();
 	float speed = moveAtAngleRelCourse(atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
 	float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-  float halfTime = TimeNow()+(distance/2)/speed;
-  while(TimeNow()<halfTime){
-    updatePosition();
-  }
+  float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
+  while(TimeNow()<halfTime);
+  updatePosition();
   distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-  if(distance < 3){
+  if(distance < 3/*ADJUST*/){
     moveBlind(atan2(y-RobotPosition.x, x-RobotPosition.y), distance);
   } else {
     moveTo1(x,y);
@@ -175,8 +180,15 @@ void moveTo1(float x, float y){
 }
 
 void moveTo2(float x, float y){
-  float speed = moveAtAngleRelCourse(atan2(y-currentY, x-currentx), 1.0);
-
+  //ALGORITHM 2
+  updatePosition();
+  float speed = moveAtAngleRelCourse(atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
+  float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
+  float endTime = TimeNow()+(distance-1)/speed;
+  while(TimeNow()<endTime);
+  updatePosition();
+  distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
+  moveBlind(atan2(y-RobotPosition.x, x-RobotPosition.y), distance);
 }
 
 void halt(){
