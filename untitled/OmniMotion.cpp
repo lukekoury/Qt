@@ -4,8 +4,6 @@
 #include <FEHUtility.h>
 #include <FEHRPS.h>
 #include <FEHSD.h>
-#include <string>
-#include <sstream>
 #include <FEHMotor.h>
 using namespace std;
 
@@ -22,7 +20,7 @@ void rotateBy(float angle);
 void rotateTo(float heading);
 void halt();
 void moveTo(float x, float y);
-void doc(string text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
+void doc(char *text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
 float principal(float x);
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
@@ -53,18 +51,51 @@ int main(){
     SD.CloseLog();
 }
 
-void doc(string text, float a, float b, float c, float d){
-    stringstream s;
-    s<<text;
-    if(a!=BLANKDOC) s<<a<<" ";
-    if(b!=BLANKDOC) s<<b<<" ";
-    if(c!=BLANKDOC) s<<c<<" ";
-    if(d!=BLANKDOC) s<<d<<" ";
-    int n = s.str().length();
-    char char_array[n+1];
-    strcpy(char_array,s.str().c_str());
-    LCD.WriteLine(char_array);
-    SD.Printf(char_array);
+void doc(const char *text, float a, float b, float c, float d){
+    char formatString[80]="";
+    strcat(formatString, "%d");
+    strcat(formatString, text);
+    if(a==BLANKDOC){
+        strcat(formatString, "\n");
+        LCD.Write(TimeNow());
+        LCD.Write(text);
+        LCD.Write('\n');
+        SD.Printf(formatString, TimeNow());
+    } else if(b==BLANKDOC){
+        strcat(formatString, " %3.1f\n");
+        LCD.Write(TimeNow());
+        LCD.Write(text);
+        LCD.Write(a);
+        LCD.Write('\n');
+        SD.Printf(formatString, TimeNow(), a);
+    } else if(c==BLANKDOC){
+        strcat(formatString, " %3.1f %3.1f\n");
+        LCD.Write(TimeNow());
+        LCD.Write(text);
+        LCD.Write(a);
+        LCD.Write(b);
+        LCD.Write('\n');
+        SD.Printf(formatString, TimeNow(), a,b);
+    } else if(d==BLANKDOC){
+        strcat(formatString, " %3.1f %3.1f %3.1f\n");
+        LCD.Write(TimeNow());
+        LCD.Write(text);
+        LCD.Write(a);
+        LCD.Write(b);
+        LCD.Write(c);
+        LCD.Write('\n');
+        SD.Printf(formatString, TimeNow(), a,b,c);
+    } else{
+        strcat(formatString, " %3.1f %3.1f %3.1f %3.1f\n");
+        LCD.Write(TimeNow());
+        LCD.Write(text);
+        LCD.Write(a);
+        LCD.Write(b);
+        LCD.Write(c);
+        LCD.Write(d);
+        LCD.Write('\n');
+        SD.Printf(formatString, TimeNow(), a,b,c,d);
+    }
 }
 
 bool updatePosition(){
