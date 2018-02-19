@@ -139,64 +139,64 @@ void rotateBy(float angle){
 }
 
 float principal(float x){
-  while(x>=360)x-=360;
-  while(x<0)x+=360;
-  return x;
+    while(x>=360)x-=360;
+    while(x<0)x+=360;
+    return x;
 }
 
 void rotateTo(float heading){
-  updatePosition();
-  float to = principal(heading);
-	float from = principal(RobotPosition.heading);
-  float rotationAngle=0;
+    updatePosition();
+    float to = principal(heading);
+    float from = principal(RobotPosition.heading);
+    float rotationAngle=0;
 	if(fabs(to-from)<180){
 		rotationAngle=to-from;
 	}else if(to>from){
 		rotationAngle= -from+(to-360);
 	}else if(to<from){
-    rotationAngle= (360-from)+to;
-  }
-  doc("Rot from/to/by:", from, to, rotationAngle);
-  rotateBy(rotationAngle);
+        rotationAngle= (360-from)+to;
+    }
+    doc("Rot from/to/by:", from, to, rotationAngle);
+    rotateBy(rotationAngle);
 	//Maybe check and adjust?
 }
 
 void moveBlind(float angle, float distance){
-  doc("BlindMove", angle, distance);
+    doc("BlindMove", angle, distance);
 	float speed = moveAtAngleRelCourse(angle, 1.0);
 	float endTime = TimeNow()+distance/speed;
 	while(timeNow()<endTime);
-  if(!updatePosition){//in case RPS fails
-    RobotPosition.x += speed*distance*cos(angle);
-    RobotPosition.y += speed*distance*sin(angle);
-    doc("CalcPosition", RobotPosition.x, RobotPosition.y);
-  }
-  doc("BlindMove finished");
+    if(!updatePosition){//in case RPS fails
+        RobotPosition.x += speed*distance*cos(PI_180*angle);
+        RobotPosition.y += speed*distance*sin(PI_180*angle);
+        doc("CalcPosition", RobotPosition.x, RobotPosition.y);
+    }
+    doc("BlindMove finished");
 }
 
 void moveTo1(float x, float y){
-  //ALGORITHM 1
-  updatePosition();
-	float speed = moveAtAngleRelCourse(atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
+    //ALGORITHM 1
+    updatePosition();
+	float speed = moveAtAngleRelCourse( (1/PI_180)*atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
 	float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-  float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
-  while(TimeNow()<halfTime);
-  if(!updatePosition){//in case RPS fails
-    RobotPosition.x += speed*distance*0.5*cos(angle);
-    RobotPosition.y += speed*distance*0.5*sin(angle);
-    doc("CalcPosition", RobotPosition.x, RobotPosition.y);
-  }
-  distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-  if(distance < 3/*ADJUST*/){
-    moveBlind(atan2(y-RobotPosition.y, x-RobotPosition.x), distance);
+    float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
+    while(TimeNow()<halfTime);
     if(!updatePosition){//in case RPS fails
-      RobotPosition.x = x;
-      RobotPosition.y = y;
-      doc("CalcPosition", RobotPosition.x, RobotPosition.y);
+        RobotPosition.x += speed*distance*0.5*cos(PI_180*angle);
+        RobotPosition.y += speed*distance*0.5*sin(PI_180*angle);
+        doc("CalcPosition", RobotPosition.x, RobotPosition.y);
     }
-  } else {
-    moveTo1(x,y);
-  }
+    distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
+    if(distance < 3/*ADJUST*/){
+        moveBlind( (1/PI_180)*atan2(y-RobotPosition.y, x-RobotPosition.x), distance);
+        if(!updatePosition){//in case RPS fails
+            RobotPosition.x = x;
+            RobotPosition.y = y;
+            doc("CalcPosition", RobotPosition.x, RobotPosition.y);
+        }
+    } else {
+        moveTo1(x,y);
+    }
 }
 
 void moveTo2(float x, float y){
