@@ -1,4 +1,5 @@
 #include <math.h>
+#include <string.h>
 #include <FEHIO.h>
 #include <FEHLCD.h>
 #include <FEHUtility.h>
@@ -34,8 +35,12 @@ FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
 
 // FUNCTION PROTOTYPES ########################################################
-void doc(char *text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
-void startWithCds();
+void doc(const char *text);
+void doc(const char *text, float a);
+void doc(const char *text, float a, float b);
+void doc(const char *text, float a, float b, float c);
+void doc(const char *text, float a, float b, float c, float d);
+bool startWithCds();
 void setupRun();
 void calibrateCds();
 void waitForInitiation();
@@ -96,16 +101,16 @@ void calibrateCds(){
 void waitForInitiation(){
     float x,y;
     LCD.Clear(BLACK);
-    while(LCD.Touch(&X,&Y)) Sleep(1); //until untouched
-    while(!LCD.Touch(&X,&Y)) Sleep(1); //until pressed
-    while(LCD.Touch(&X,&Y)) Sleep(1); //until released
+    while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
+    while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
+    while(LCD.Touch(&x,&y)) Sleep(1); //until released
     LCD.Clear(LIME);
 }
 
 bool startWithCds(){
     float reading=0, oldReading=0, oldOldReading=0;
     float m=cdsControl-1.0;//threshhold in volts TODO:Calibrate
-    int panicTime = timeNow() + 90; //after 90 seconds, go anyway.
+    int panicTime = TimeNow() + 90; //after 90 seconds, go anyway.
     while(reading>m || oldReading>m || oldOldReading>m){
         //move only after three in a row under threshold.
         oldOldReading=oldReading;
@@ -120,52 +125,50 @@ bool startWithCds(){
     doc("Going with CdS.");
     return true;
 }
-
+void doc(const char *text){
+    char formatString[80]="%3.3f %s\n";
+    LCD.Write(TimeNow());
+    LCD.Write(text);
+    LCD.Write('\n');
+    SD.Printf(formatString, TimeNow(), text);
+}
+void doc(const char *text, float a){
+    char formatString[]="%3.3f %s %3.1f\n";
+    LCD.Write(TimeNow());
+    LCD.Write(text);
+    LCD.Write(a);
+    LCD.Write('\n');
+    SD.Printf(formatString, TimeNow(), text, a);
+}
+void doc(const char *text, float a, float b){
+    char formatString[]="%3.3f %s %3.1f %3.1f\n";
+    LCD.Write(TimeNow());
+    LCD.Write(text);
+    LCD.Write(a);
+    LCD.Write(b);
+    LCD.Write('\n');
+    SD.Printf(formatString, TimeNow(), text, a, b);
+}
+void doc(const char *text, float a, float b, float c){
+    char formatString[]="%3.3f %s %3.1f %3.1f %3.1f\n";
+    LCD.Write(TimeNow());
+    LCD.Write(text);
+    LCD.Write(a);
+    LCD.Write(b);
+    LCD.Write(c);
+    LCD.Write('\n');
+    SD.Printf(formatString, TimeNow(), text, a, b, c);
+}
 void doc(const char *text, float a, float b, float c, float d){
-    char formatString[80]="";
-    strcat(formatString, "%d");
-    strcat(formatString, text);
-    if(a==BLANKDOC){
-        strcat(formatString, "\n");
-        LCD.Write(TimeNow());
-        LCD.Write(text);
-        LCD.Write('\n');
-        SD.Printf(formatString, TimeNow());
-    } else if(b==BLANKDOC){
-        strcat(formatString, " %3.1f\n");
-        LCD.Write(TimeNow());
-        LCD.Write(text);
-        LCD.Write(a);
-        LCD.Write('\n');
-        SD.Printf(formatString, TimeNow(), a);
-    } else if(c==BLANKDOC){
-        strcat(formatString, " %3.1f %3.1f\n");
-        LCD.Write(TimeNow());
-        LCD.Write(text);
-        LCD.Write(a);
-        LCD.Write(b);
-        LCD.Write('\n');
-        SD.Printf(formatString, TimeNow(), a,b);
-    } else if(d==BLANKDOC){
-        strcat(formatString, " %3.1f %3.1f %3.1f\n");
-        LCD.Write(TimeNow());
-        LCD.Write(text);
-        LCD.Write(a);
-        LCD.Write(b);
-        LCD.Write(c);
-        LCD.Write('\n');
-        SD.Printf(formatString, TimeNow(), a,b,c);
-    } else{
-        strcat(formatString, " %3.1f %3.1f %3.1f %3.1f\n");
-        LCD.Write(TimeNow());
-        LCD.Write(text);
-        LCD.Write(a);
-        LCD.Write(b);
-        LCD.Write(c);
-        LCD.Write(d);
-        LCD.Write('\n');
-        SD.Printf(formatString, TimeNow(), a,b,c,d);
-    }
+    char formatString[]= "%3.3f %s %3.1f %3.1f %3.1f %3.1f\n";
+    LCD.Write(TimeNow());
+    LCD.Write(text);
+    LCD.Write(a);
+    LCD.Write(b);
+    LCD.Write(c);
+    LCD.Write(d);
+    LCD.Write('\n');
+    SD.Printf(formatString, TimeNow(), text, a,b,c,d);
 }
 
 // MOVEMENT AND NAVIGATION ###################################################
