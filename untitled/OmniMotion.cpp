@@ -11,7 +11,7 @@
 #define PI_180 0.0174532925
 #define SPEEDCONSTANT 12.41 //inches per second TODO: Calibrate
 #define ROTATIONCONSTANT 170.74 //degrees per second TODO: Calibrate
-#define BLANKDOC -123.456
+#define FRMT "%.1f "
 
 using namespace std;
 
@@ -54,8 +54,11 @@ float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
 void setRotation(float direction);
 float principal(float x);
+float arg(float x1,float y1,float x2,float y2);
+float pythag(float x1,float y1,float x2,float y2);
 
-void moveBlind(float angle, float distance);
+void moveBlind(float angle, float distance, float speedPercent);
+void moveBlindTo(float x, float y, float speedPercent);
 void moveTo1(float x, float y);
 void moveTo2(float x, float y);
 void rotateBy(float angle);
@@ -63,31 +66,34 @@ void rotateTo(float heading);
 
 
 // OVERALL PROCEDURE ##########################################################
+
 int main(){
+    //RPS.InitializeTouchMenu();
     setupRun();
-    waitForInitiation();
     startWithCds();
 
-    moveBlind(0,36);
-    moveBlind(90,36);
-    moveBlind(180,36);
-    moveBlind(360,36);
+    for(int i=0; i<360; i+=10){
+        moveBlind(i, 2, 1.0);
+    }
 
+    doc("Program halted");
     SD.CloseLog();
 }
 
 // STARTUP AND BOOKKEEPING ####################################################
 
 void setupRun(){
-    RPS.InitializeTouchMenu();
     SD.OpenLog();
     calibrateCds();
+    Robot = {0,0,0,0};
     updatePosition();
+    waitForInitiation();
 }
 
 void calibrateCds(){
+    //takes 1.2 seconds
     doc("Setting cds control");
-    Sleep(2.0);
+    Sleep(1.0);
     float sum=0;
     int numCalibrations=20;
     for(int i=0; i<numCalibrations; i++){
@@ -100,17 +106,17 @@ void calibrateCds(){
 
 void waitForInitiation(){
     float x,y;
-    LCD.Clear(BLACK);
+    LCD.WriteRC("Touch to domniate.",6,2);
     while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
     while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
     while(LCD.Touch(&x,&y)) Sleep(1); //until released
-    LCD.Clear(LIME);
+    LCD.Clear(SCARLET);
 }
 
 bool startWithCds(){
     float reading=0, oldReading=0, oldOldReading=0;
     float m=cdsControl-1.0;//threshhold in volts TODO:Calibrate
-    int panicTime = TimeNow() + 90; //after 90 seconds, go anyway.
+    int panicTime = TimeNow() + 5; //after 90 seconds, go anyway.
     while(reading>m || oldReading>m || oldOldReading>m){
         //move only after three in a row under threshold.
         oldOldReading=oldReading;
@@ -118,65 +124,58 @@ bool startWithCds(){
         reading=cds.Value();
         if(TimeNow()>panicTime){
             doc("Going without CdS.");
+            LCD.Clear(BLACK);
             return false;
         }
         Sleep(5);
     }
     doc("Going with CdS.");
+    LCD.Clear(BLACK);
     return true;
 }
 void doc(const char *text){
-    char formatString[80]="%3.3f %s\n";
-    LCD.Write(TimeNow());
-    LCD.Write(text);
-    LCD.Write('\n');
-    SD.Printf(formatString, TimeNow(), text);
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text);
+    SD.Printf("\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a){
-    char formatString[]="%3.3f %s %3.1f\n";
-    LCD.Write(TimeNow());
-    LCD.Write(text);
-    LCD.Write(a);
-    LCD.Write('\n');
-    SD.Printf(formatString, TimeNow(), text, a);
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text);
+    SD.Printf(FRMT, a); LCD.Write(a);
+    SD.Printf("\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b){
-    char formatString[]="%3.3f %s %3.1f %3.1f\n";
-    LCD.Write(TimeNow());
-    LCD.Write(text);
-    LCD.Write(a);
-    LCD.Write(b);
-    LCD.Write('\n');
-    SD.Printf(formatString, TimeNow(), text, a, b);
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text);
+    SD.Printf(FRMT, a); LCD.Write(a);
+    SD.Printf(FRMT, b); LCD.Write(b);
+    SD.Printf("\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b, float c){
-    char formatString[]="%3.3f %s %3.1f %3.1f %3.1f\n";
-    LCD.Write(TimeNow());
-    LCD.Write(text);
-    LCD.Write(a);
-    LCD.Write(b);
-    LCD.Write(c);
-    LCD.Write('\n');
-    SD.Printf(formatString, TimeNow(), text, a, b, c);
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text);
+    SD.Printf(FRMT, a); LCD.Write(a);
+    SD.Printf(FRMT, b); LCD.Write(b);
+    SD.Printf(FRMT, c); LCD.Write(c);
+    SD.Printf("\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b, float c, float d){
-    char formatString[]= "%3.3f %s %3.1f %3.1f %3.1f %3.1f\n";
-    LCD.Write(TimeNow());
-    LCD.Write(text);
-    LCD.Write(a);
-    LCD.Write(b);
-    LCD.Write(c);
-    LCD.Write(d);
-    LCD.Write('\n');
-    SD.Printf(formatString, TimeNow(), text, a,b,c,d);
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text);
+    SD.Printf(FRMT, a); LCD.Write(a);
+    SD.Printf(FRMT, b); LCD.Write(b);
+    SD.Printf(FRMT, c); LCD.Write(c);
+    SD.Printf(FRMT, d); LCD.Write(d);
+    SD.Printf("\n"); LCD.Write('\n');
 }
 
 // MOVEMENT AND NAVIGATION ###################################################
+
 bool updatePosition(){
     float x = RPS.X();
     float y = RPS.Y();
     float heading = RPS.Heading();
-    if(fabs(heading-(-1))>.001){
+    if(fabs(heading)>0){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
         } else {
@@ -195,9 +194,9 @@ bool updatePosition(){
 void moveTo1(float x, float y){
     //ALGORITHM 1
     updatePosition();
-    float angle=(1/PI_180)*atan2(y-Robot.x, x-Robot.y);
+    float angle=arg(Robot.x, Robot.y, x, y);
     float speed = moveAtAngleRelCourse(angle, 1.0);
-    float distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    float distance = pythag(Robot.x,Robot.y, x,y);
     float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
     doc("movingTo1", x, y, distance, halfTime);
     while(TimeNow()<halfTime);
@@ -206,9 +205,9 @@ void moveTo1(float x, float y){
         Robot.y += speed*distance*0.5*sin(PI_180*angle);
         doc("CalcPosition", Robot.x, Robot.y);
     }
-    distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    distance = pythag(Robot.x, Robot.y, x, y);
     if(distance < 3/*ADJUST*/){
-        moveBlind( (1/PI_180)*atan2(y-Robot.y, x-Robot.x), distance);
+        moveBlindTo(x,y,.5);
         if(!updatePosition){//in case RPS fails
             Robot.x = x;
             Robot.y = y;
@@ -222,16 +221,16 @@ void moveTo1(float x, float y){
 void moveTo2(float x, float y){
     //ALGORITHM 2
     updatePosition();
-    float speed = moveAtAngleRelCourse(atan2(y-Robot.x, x-Robot.y), 1.0);
-    float distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    float speed = moveAtAngleRelCourse(arg(Robot.x, Robot.y, x, y), 1.0);
+    float distance = pythag(Robot.x, Robot.y, x, y);
     float endTime = TimeNow()+(distance)/speed;
     while(TimeNow()<endTime);
-    if(!updatePosition()){
+    if(updatePosition()){
+        moveBlindTo(x,y,.25);
+    } else {
         Robot.x = x;
         Robot.y = y;
     }
-    distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
-    moveBlind(atan2(y-Robot.x, x-Robot.y), distance);
 }
 
 void rotateTo(float heading){
@@ -251,9 +250,9 @@ void rotateTo(float heading){
     //Maybe check and adjust?
 }
 
-void moveBlind(float angle, float distance){
+void moveBlind(float angle, float distance, float speedPercent){
     doc("BlindMove", angle, distance);
-    float speed = moveAtAngleRelCourse(angle, 1.0);
+    float speed = moveAtAngleRelCourse(angle, speedPercent);
     float endTime = TimeNow()+distance/speed;
     while(TimeNow()<endTime);
     if(!updatePosition){//in case RPS fails
@@ -262,6 +261,13 @@ void moveBlind(float angle, float distance){
         doc("CalcPosition", Robot.x, Robot.y);
     }
     doc("BlindMove finished");
+    halt();
+}
+
+void moveBlindTo(float x, float y, float speedPercent){
+    float angle = (1/PI_180)*atan2(y-Robot.y, x-Robot.x);
+    float distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    moveBlind(angle, distance, speedPercent);
 }
 
 float setVelocityComponents(float right, float forward, float speedPercent){
@@ -331,8 +337,20 @@ void rotateBy(float angle){
     doc("Rotation Finished.");
 }
 
+
+// MATH FUNCTIONS WITHOUT SIDE EFFECTS ##########################################
 float principal(float x){
     while(x>=360)x-=360;
     while(x<0)x+=360;
     return x;
+}
+
+float arg(float x1, float y1, float x2, float y2){
+    //returns the angle from (x1,y1) to (x2,y2)
+    return atan2(y2-y1,x2-x1)/(PI_180);
+}
+
+float pythag(float x1, float y1, float x2, float y2){
+    //returns the distance from (x1,y1) to (x2,y2)
+    return sqrt(pow(y2-y1,2)+pow(x2-x1,2));
 }
