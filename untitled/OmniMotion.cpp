@@ -7,28 +7,22 @@
 #include <FEHMotor.h>
 #include <FEHServo.h>
 
-using namespace std;
-
 #define PI_180 0.0174532925
-#define SPEEDCONSTANT 12.41 //TODO: Calibrate
-#define ROTATIONCONSTANT 12.41 //TODO: Calibrate
+#define SPEEDCONSTANT 12.41 //inches per second TODO: Calibrate
+#define ROTATIONCONSTANT 170.74 //degrees per second TODO: Calibrate
 #define BLANKDOC -123.456
 
-float moveAtAngleRelRobot(float heading, float speedPercent);
-float moveAtAngleRelCourse(float heading, float speedPercent);
-void setRotation(float direction);
-void moveBlind(float angle, float distance);
-void rotateBy(float angle);
-void rotateTo(float heading);
-void halt();
-void moveTo(float x, float y);
-void doc(char *text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
-float principal(float x);
-bool updatePosition();
-void doc(string text, float a, float b, float c, float d);
-void setWheels(float fl, float fr, float bl, float br);
-void setWheels(float fl, float fr, float bl, float br);
-void startWithCds();
+using namespace std;
+
+// GLOBAL VARIABLES ###########################################################
+struct POS{
+    float x;
+    float y;
+    float heading;
+    float timestamp;
+} Robot;
+
+float cdsControl;
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -39,24 +33,45 @@ AnalogInputPin cds(FEHIO::P0_0);//TODO: DECIDE PINS!!!
 FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
 
-struct POS{
-    float x;
-    float y;
-    float heading;
-    int timestamp;
-} RobotPosition;
+// FUNCTION PROTOTYPES ########################################################
+void doc(char *text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
+void startWithCds();
+void setupRun();
+void calibrateCds();
+void waitForInitiation();
+bool updatePosition();
 
-float cdsControl;
+void setWheels(float fl, float fr, float bl, float br);
+void halt();
 
+float setVelocityComponents(float right, float forward, float speedPercent);
+float moveAtAngleRelRobot(float heading, float speedPercent);
+float moveAtAngleRelCourse(float heading, float speedPercent);
+void setRotation(float direction);
+float principal(float x);
+
+void moveBlind(float angle, float distance);
+void moveTo1(float x, float y);
+void moveTo2(float x, float y);
+void rotateBy(float angle);
+void rotateTo(float heading);
+
+
+// OVERALL PROCEDURE ##########################################################
 int main(){
     setupRun();
+    waitForInitiation();
     startWithCds();
+
     moveBlind(0,36);
     moveBlind(90,36);
     moveBlind(180,36);
     moveBlind(360,36);
+
     SD.CloseLog();
 }
+
+// STARTUP AND BOOKKEEPING ####################################################
 
 void setupRun(){
     RPS.InitializeTouchMenu();
@@ -76,6 +91,15 @@ void calibrateCds(){
     }
     cdsControl = sum / numCalibrations;
     doc("cds control:", cdsControl);
+}
+
+void waitForInitiation(){
+    float x,y;
+    LCD.Clear(BLACK);
+    while(LCD.Touch(&X,&Y)) Sleep(1); //until untouched
+    while(!LCD.Touch(&X,&Y)) Sleep(1); //until pressed
+    while(LCD.Touch(&X,&Y)) Sleep(1); //until released
+    LCD.Clear(LIME);
 }
 
 bool startWithCds(){
@@ -144,19 +168,20 @@ void doc(const char *text, float a, float b, float c, float d){
     }
 }
 
+// MOVEMENT AND NAVIGATION ###################################################
 bool updatePosition(){
     float x = RPS.X();
     float y = RPS.Y();
     float heading = RPS.Heading();
     if(fabs(heading-(-1))>.001){
-        if(RobotPosition.x == x && RobotPosition.y == y && RobotPosition.heading == heading){
+        if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
         } else {
-            RobotPosition.x = x;
-            RobotPosition.y = y;
-            RobotPosition.heading = heading;
-            RobotPosition.timestamp=TimeNow();
-            doc("Position: ", x,y,heading, RobotPosition.timestamp);
+            Robot.x = x;
+            Robot.y = y;
+            Robot.heading = heading;
+            Robot.timestamp=TimeNow();
+            doc("Position: ", x,y,heading, Robot.timestamp);
             return true;
         }
     }
@@ -164,19 +189,82 @@ bool updatePosition(){
     return false;
 }
 
-void setWheels(float fl, float fr, float bl, float br){
-    //Sets wheels to given speeds
-    //TODO: include calibrations for wheels
-    motorFL.SetPercent(100.0*fl);
-    motorFR.SetPercent(100.0*fr);
-    motorBL.SetPercent(100.0*bl);
-    motorBR.SetPercent(100.0*br);
+void moveTo1(float x, float y){
+    //ALGORITHM 1
+    updatePosition();
+    float angle=(1/PI_180)*atan2(y-Robot.x, x-Robot.y);
+    float speed = moveAtAngleRelCourse(angle, 1.0);
+    float distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
+    doc("movingTo1", x, y, distance, halfTime);
+    while(TimeNow()<halfTime);
+    if(!updatePosition){//in case RPS fails
+        Robot.x += speed*distance*0.5*cos(PI_180*angle);
+        Robot.y += speed*distance*0.5*sin(PI_180*angle);
+        doc("CalcPosition", Robot.x, Robot.y);
+    }
+    distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    if(distance < 3/*ADJUST*/){
+        moveBlind( (1/PI_180)*atan2(y-Robot.y, x-Robot.x), distance);
+        if(!updatePosition){//in case RPS fails
+            Robot.x = x;
+            Robot.y = y;
+            doc("CalcPosition", Robot.x, Robot.y);
+        }
+    } else {
+        moveTo1(x,y);
+    }
+}
+
+void moveTo2(float x, float y){
+    //ALGORITHM 2
+    updatePosition();
+    float speed = moveAtAngleRelCourse(atan2(y-Robot.x, x-Robot.y), 1.0);
+    float distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    float endTime = TimeNow()+(distance)/speed;
+    while(TimeNow()<endTime);
+    if(!updatePosition()){
+        Robot.x = x;
+        Robot.y = y;
+    }
+    distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
+    moveBlind(atan2(y-Robot.x, x-Robot.y), distance);
+}
+
+void rotateTo(float heading){
+    updatePosition();
+    float to = principal(heading);
+    float from = principal(Robot.heading);
+    float rotationAngle=0;
+    if(fabs(to-from)<180){
+        rotationAngle=to-from;
+    }else if(to>from){
+        rotationAngle= -from+(to-360);
+    }else if(to<from){
+        rotationAngle= (360-from)+to;
+    }
+    doc("Rot from/to/by:", from, to, rotationAngle);
+    rotateBy(rotationAngle);
+    //Maybe check and adjust?
+}
+
+void moveBlind(float angle, float distance){
+    doc("BlindMove", angle, distance);
+    float speed = moveAtAngleRelCourse(angle, 1.0);
+    float endTime = TimeNow()+distance/speed;
+    while(TimeNow()<endTime);
+    if(!updatePosition){//in case RPS fails
+        Robot.x += speed*distance*cos(PI_180*angle);
+        Robot.y += speed*distance*sin(PI_180*angle);
+        doc("CalcPosition", Robot.x, Robot.y);
+    }
+    doc("BlindMove finished");
 }
 
 float setVelocityComponents(float right, float forward, float speedPercent){
     //arguments between -1 and 1
     //Ex: setVelocityComponents(-1, 1, 0.75);
-    //will set robot going forward and to the left at 75% Speed
+    //will set Robot going forward and to the left at 75% Speed
     //returns speed
     float fl=-forward-right;
     float fr=+forward-right;
@@ -198,6 +286,20 @@ float setVelocityComponents(float right, float forward, float speedPercent){
     return speed;
 }
 
+void halt(){
+    doc("Halting");
+    setWheels(0,0,0,0);
+}
+
+void setWheels(float fl, float fr, float bl, float br){
+    //Sets wheels to given speeds
+    //TODO: include calibrations for wheels
+    motorFL.SetPercent(100.0*fl);
+    motorFR.SetPercent(100.0*fr);
+    motorBL.SetPercent(100.0*bl);
+    motorBR.SetPercent(100.0*br);
+}
+
 float moveAtAngleRelRobot(float heading, float speedPercent){
     doc("RelRobot: ", heading, speedPercent);
     //TODO: MAKE SURE THIS IS HOW HEADINGS WORK
@@ -206,7 +308,7 @@ float moveAtAngleRelRobot(float heading, float speedPercent){
 
 float moveAtAngleRelCourse(float heading, float speedPercent){
     doc("RelCourse: ", heading, speedPercent);
-    return moveAtAngleRelRobot(heading-RobotPosition.heading, speedPercent);
+    return moveAtAngleRelRobot(heading-Robot.heading, speedPercent);
 }
 
 void setRotation(float direction){
@@ -222,7 +324,7 @@ void rotateBy(float angle){
     float timeEnd=TimeNow()+angle/ROTATIONCONSTANT;
     while(TimeNow()<timeEnd);
     halt();
-    if(!updatePosition) RobotPosition.heading=principal(RobotPosition.heading+angle);
+    if(!updatePosition) Robot.heading=principal(Robot.heading+angle);
     doc("Rotation Finished.");
 }
 
@@ -230,81 +332,4 @@ float principal(float x){
     while(x>=360)x-=360;
     while(x<0)x+=360;
     return x;
-}
-
-void rotateTo(float heading){
-    updatePosition();
-    float to = principal(heading);
-    float from = principal(RobotPosition.heading);
-    float rotationAngle=0;
-    if(fabs(to-from)<180){
-        rotationAngle=to-from;
-    }else if(to>from){
-        rotationAngle= -from+(to-360);
-    }else if(to<from){
-        rotationAngle= (360-from)+to;
-    }
-    doc("Rot from/to/by:", from, to, rotationAngle);
-    rotateBy(rotationAngle);
-    //Maybe check and adjust?
-}
-
-void moveBlind(float angle, float distance){
-    doc("BlindMove", angle, distance);
-    float speed = moveAtAngleRelCourse(angle, 1.0);
-    float endTime = TimeNow()+distance/speed;
-    while(TimeNow()<endTime);
-    if(!updatePosition){//in case RPS fails
-        RobotPosition.x += speed*distance*cos(PI_180*angle);
-        RobotPosition.y += speed*distance*sin(PI_180*angle);
-        doc("CalcPosition", RobotPosition.x, RobotPosition.y);
-    }
-    doc("BlindMove finished");
-}
-
-void moveTo1(float x, float y){
-    //ALGORITHM 1
-    updatePosition();
-    float angle=(1/PI_180)*atan2(y-RobotPosition.x, x-RobotPosition.y);
-    float speed = moveAtAngleRelCourse(angle, 1.0);
-    float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-    float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
-    doc("movingTo1", x, y, distance, halfTime);
-    while(TimeNow()<halfTime);
-    if(!updatePosition){//in case RPS fails
-        RobotPosition.x += speed*distance*0.5*cos(PI_180*angle);
-        RobotPosition.y += speed*distance*0.5*sin(PI_180*angle);
-        doc("CalcPosition", RobotPosition.x, RobotPosition.y);
-    }
-    distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-    if(distance < 3/*ADJUST*/){
-        moveBlind( (1/PI_180)*atan2(y-RobotPosition.y, x-RobotPosition.x), distance);
-        if(!updatePosition){//in case RPS fails
-            RobotPosition.x = x;
-            RobotPosition.y = y;
-            doc("CalcPosition", RobotPosition.x, RobotPosition.y);
-        }
-    } else {
-        moveTo1(x,y);
-    }
-}
-
-void moveTo2(float x, float y){
-    //ALGORITHM 2
-    updatePosition();
-    float speed = moveAtAngleRelCourse(atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
-    float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-    float endTime = TimeNow()+(distance)/speed;
-    while(TimeNow()<endTime);
-    if(!updatePosition()){
-        RobotPosition.x = x;
-        RobotPosition.y = y;
-    }
-    distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-    moveBlind(atan2(y-RobotPosition.x, x-RobotPosition.y), distance);
-}
-
-void halt(){
-    doc("Halting");
-    setWheels(0,0,0,0);
 }
