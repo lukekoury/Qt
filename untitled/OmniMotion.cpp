@@ -5,6 +5,8 @@
 #include <FEHRPS.h>
 #include <FEHSD.h>
 #include <FEHMotor.h>
+#include <FEHServo.h>
+
 using namespace std;
 
 #define PI_180 0.0174532925
@@ -22,16 +24,20 @@ void halt();
 void moveTo(float x, float y);
 void doc(char *text, float a=BLANKDOC, float b=BLANKDOC, float c=BLANKDOC, float d=BLANKDOC);
 float principal(float x);
+bool updatePosition();
+void doc(string text, float a, float b, float c, float d);
+void setWheels(float fl, float fr, float bl, float br);
+void setWheels(float fl, float fr, float bl, float br);
+void startWithCds();
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
 FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
-bool updatePosition();
-void doc(string text, float a, float b, float c, float d);
-void setWheels(float fl, float fr, float bl, float br);
-void setWheels(float fl, float fr, float bl, float br);
+AnalogInputPin cds(FEHIO::P0_0);//TODO: DECIDE PINS!!!
+FEHServo crankyBoi(FEHServo::Servo0);
+FEHServo forkLift(FEHServo::Servo1);
 
 struct POS{
     float x;
@@ -40,15 +46,55 @@ struct POS{
     int timestamp;
 } RobotPosition;
 
+float cdsControl;
+
 int main(){
-    RPS.InitializeTouchMenu();
-    SD.OpenLog();
-    updatePosition();
+    setupRun();
+    startWithCds();
     moveBlind(0,36);
     moveBlind(90,36);
     moveBlind(180,36);
     moveBlind(360,36);
     SD.CloseLog();
+}
+
+void setupRun(){
+    RPS.InitializeTouchMenu();
+    SD.OpenLog();
+    calibrateCds();
+    updatePosition();
+}
+
+void calibrateCds(){
+    doc("Setting cds control");
+    Sleep(2.0);
+    float sum=0;
+    int numCalibrations=20;
+    for(int i=0; i<numCalibrations; i++){
+        sum+=cds.Value();
+        Sleep(10);
+    }
+    cdsControl = sum / numCalibrations;
+    doc("cds control:", cdsControl);
+}
+
+bool startWithCds(){
+    float reading=0, oldReading=0, oldOldReading=0;
+    float m=cdsControl-1.0;//threshhold in volts TODO:Calibrate
+    int panicTime = timeNow() + 90; //after 90 seconds, go anyway.
+    while(reading>m || oldReading>m || oldOldReading>m){
+        //move only after three in a row under threshold.
+        oldOldReading=oldReading;
+        oldReading=reading;
+        reading=cds.Value();
+        if(TimeNow()>panicTime){
+            doc("Going without CdS.");
+            return false;
+        }
+        Sleep(5);
+    }
+    doc("Going with CdS.");
+    return true;
 }
 
 void doc(const char *text, float a, float b, float c, float d){
@@ -223,6 +269,7 @@ void moveTo1(float x, float y){
     float speed = moveAtAngleRelCourse(angle, 1.0);
     float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
     float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
+    doc("movingTo1", x, y, distance, halfTime);
     while(TimeNow()<halfTime);
     if(!updatePosition){//in case RPS fails
         RobotPosition.x += speed*distance*0.5*cos(PI_180*angle);
@@ -247,9 +294,12 @@ void moveTo2(float x, float y){
     updatePosition();
     float speed = moveAtAngleRelCourse(atan2(y-RobotPosition.x, x-RobotPosition.y), 1.0);
     float distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
-    float endTime = TimeNow()+(distance-1)/speed;
+    float endTime = TimeNow()+(distance)/speed;
     while(TimeNow()<endTime);
-    updatePosition();
+    if(!updatePosition()){
+        RobotPosition.x = x;
+        RobotPosition.y = y;
+    }
     distance = sqrt(pow(y-RobotPosition.y,2)+pow(x-RobotPosition.x,2));
     moveBlind(atan2(y-RobotPosition.x, x-RobotPosition.y), distance);
 }
