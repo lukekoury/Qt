@@ -265,9 +265,9 @@ void moveBlind(float angle, float distance, float speedPercent){
 }
 
 void moveBlindTo(float x, float y, float speedPercent){
-    float angle = (1/PI_180)*atan2(y-Robot.y, x-Robot.x);
-    float distance = sqrt(pow(y-Robot.y,2)+pow(x-Robot.x,2));
-    moveBlind(angle, distance, speedPercent);
+    moveBlind( arg(Robot.x, Robot.y, x, y),
+               pythag(Robot.x, Robot.y, x, y),
+               speedPercent);
 }
 
 float setVelocityComponents(float right, float forward, float speedPercent){
@@ -333,12 +333,13 @@ void rotateBy(float angle){
     float timeEnd=TimeNow()+angle/ROTATIONCONSTANT;
     while(TimeNow()<timeEnd);
     halt();
-    if(!updatePosition) Robot.heading=principal(Robot.heading+angle);
+    if(!updatePosition()) Robot.heading=principal(Robot.heading+angle);
     doc("Rotation Finished.");
 }
 
 
 // MATH FUNCTIONS WITHOUT SIDE EFFECTS ##########################################
+
 float principal(float x){
     while(x>=360)x-=360;
     while(x<0)x+=360;
