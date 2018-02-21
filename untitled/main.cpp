@@ -8,6 +8,7 @@
 #include <FEHMotor.h>
 #include <FEHServo.h>
 #include <FEHBuzzer.h>
+#include <FEHBattery.h>
 
 #define PI_180 0.0174532925
 #define SPEEDCONSTANT 13.9 //inches per second TODO: Calibrate
@@ -45,9 +46,8 @@ void doc(const char *text, float a, float b, float c, float d);
 void setupRun();
 bool startWithCds();
 void calibrateCds();
-void cdsMeterMode();
 void calibrateRPS();
-void rpsMeterMode();
+void meterMode();
 void waitForTouch();
 bool updatePosition();
 
@@ -66,55 +66,53 @@ float deltaAngle(float from, float to);
 
 void moveBlind(float angle, float distance, float speedPercent);
 void moveBlindTo(float x, float y, float speedPercent);
+void moveComponents(float x, float y, float speedPercent);
 void moveTo1(float x, float y);
 void moveTo2(float x, float y);
 void rotateBy(float angle, float speedPercent);
 void rotateTo(float heading);
 
-
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
-
-    RPS.InitializeTouchMenu();
     setupRun();
-    LCD.WriteRC("Touch to domniate.",6,4);
-    waitForTouch();
-    startWithCds();
-    //cdsMeterMode();
 
     //
-
 
     //Performance Test 1
 
-    moveBlindTo(-12,-22,1);
-    moveBlindTo(-7,-22,1);
-    moveBlindTo(-8,-22,1);
-    moveBlindTo(-7,-10,1);
+    moveComponents(-12,-22,1); //to corner
+    moveComponents(5,0,1); //hit lever
+    moveComponents(-1,0,1); //move west away from lever
+    moveComponents(0,12,1); //move up
 
-    moveBlindTo(-14,-2,1);
-    moveBlindTo(-12,30,1);
-    moveBlindTo(12,30,1);
-    moveBlindTo(12,-18,1);
+    moveComponents(-7,8,1); //get to grass ramp
+    moveComponents(1,30,1); //go up ramp
+    moveComponents(24,0,1); //slide across
+    moveComponents(0,-50,1); //descend ramp and smash buttons
 
     //
 
-    doc("Program halted");
+    doc("Program finished.");
     SD.CloseLog();
 }
 
 // STARTUP AND BOOKKEEPING ####################################################
 
 void setupRun(){
+    //RPS.InitializeTouchMenu();
     SD.OpenLog();
+    doc("Voltage: ", Battery.Voltage());
     calibrateRPS();
     calibrateCds();
+    doc("Touch to dominate.");
+    waitForTouch();
+    doc("Waiting for CdS.")
+    startWithCds();
 }
-
 void calibrateCds(){
     //takes 1.2 seconds
-    LCD.WriteLine("Touch to calubrate CdS.");
+    LCD.WriteLine("Touch to calibrate CdS.");
     waitForTouch();
 
     float sum=0;
@@ -124,10 +122,16 @@ void calibrateCds(){
         Sleep(4);
     }
     cdsControl = sum / numCalibrations;
-    doc("cds control:", cdsControl);
+    doc("CdS baseline:", cdsControl);
 }
-void cdsMeterMode(){
+void calibrateRPS(){
+    startX=RPS.X();
+    startY=RPS.Y();
+    updatePosition();
+}
+void meterMode(){
     while(true){
+        //CdS
         float sum=0;
         int numCalibrations=50;
         for(int i=0; i<numCalibrations; i++){
@@ -136,27 +140,18 @@ void cdsMeterMode(){
         }
         cdsControl = sum / numCalibrations;
         LCD.Clear();
+        LCD.Write("CdS: ");
         LCD.WriteLine(cdsControl);
-    }
-}
-void calibrateRPS(){
-    startX=RPS.X();
-    startY=RPS.Y();
-    updatePosition();
-}
-void rpsMeterMode(){
-    while(true){
-        LCD.Clear();
-        LCD.Write("( ");
+
+        //RPS
+        LCD.Write("RPS ( ");
         LCD.Write(RPS.X());
         LCD.Write(" , ");
         LCD.Write(RPS.Y());
-        LCD.Write(" )\n");
+        LCD.Write(" )\nH ");
         LCD.WriteLine(RPS.Heading());
-        Sleep(100);
     }
 }
-
 void waitForTouch(){
     float x,y;
     while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
@@ -268,6 +263,7 @@ void moveTo1(float x, float y){
     distance = pythag(Robot.x, Robot.y, x, y);
     if(distance < 3/*ADJUST*/){
         moveBlindTo(x,y,.3);/*ADJUST*/
+        halt();
         if(!updatePosition()){//in case RPS fails
             Robot.x = x;
             Robot.y = y;
@@ -286,7 +282,7 @@ void moveTo2(float x, float y){
     float endTime = TimeNow()+(distance)/speed;
     while(TimeNow()<endTime);
     if(updatePosition()){
-        moveBlindTo(x,y,.25);
+        moveBlindTo(x,y,.3);
     } else {
         Robot.x = x;
         Robot.y = y;
@@ -326,6 +322,11 @@ void moveBlind(float angle, float distance, float speedPercent){
     //}
     doc("BlindMove finished");
     halt();
+}
+
+void moveComponents(float x, float y, float sppedPercent){
+    //Don't do it the direct way because the robot could be tilted
+    moveBlindTo(Robot.x+x, Robot.y+y);
 }
 
 void moveBlindTo(float x, float y, float speedPercent){
@@ -378,18 +379,15 @@ float moveAtAngleRelRobot(float heading, float speedPercent){
     doc("RelRobot: ", heading, speedPercent);
     return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), speedPercent);
 }
-
 float moveAtAngleRelCourse(float heading, float speedPercent){
     doc("RelCourse: ", heading, speedPercent);
     return moveAtAngleRelRobot(heading-Robot.heading, speedPercent);
 }
-
 void setRotation(float direction){
     if(fabs(direction)>1) direction=(direction>0? 1:-1);
     doc("Setting Rotation:", direction);
     setWheels(direction, direction, direction, direction);
 }
-
 void rotateBy(float angle, float speedPercent){
     doc("Rotating by:", angle);
     setRotation(speedPercent*(angle>0? 1:-1));
@@ -400,25 +398,23 @@ void rotateBy(float angle, float speedPercent){
     doc("Rotation Finished.");
 }
 
-
-// MATH FUNCTIONS WITHOUT SIDE EFFECTS ##########################################
+// MATH FUNCTIONS WITHOUT SIDE EFFECTS #######################################
 
 float principal(float x){
     while(x>=360)x-=360;
     while(x<0)x+=360;
     return x;
 }
-
 float arg(float x1, float y1, float x2, float y2){
     //returns the angle from (x1,y1) to (x2,y2)
     return atan2(y2-y1,x2-x1)/(PI_180);
 }
-
 float pythag(float x1, float y1, float x2, float y2){
     //returns the distance from (x1,y1) to (x2,y2)
     return sqrt(pow(y2-y1,2)+pow(x2-x1,2));
 }
 float deltaAngle(float from, float to){
+    //returns the angle from 'from' to 'to'. Between -180 and 180.
     to = principal(to);
     from = principal(from);
     float rotationAngle=0;
