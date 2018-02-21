@@ -75,26 +75,6 @@ void rotateTo(float heading);
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
-//    moveBlind(90,5,.2);
-//    Sleep(.5);
-//    moveBlind(180,5,.2);
-//    Sleep(.5);
-//    moveBlind(270,5,.2);
-//    Sleep(.5);
-//    moveBlind(0,5,.2);
-//    Sleep(.5);
-//    return 0;
-    setupRun();
-    Robot={0,0,0,0};
-    moveBlindTo(0,5,.2);
-    Sleep(.5);
-    moveBlind(-5,5,.2);
-    Sleep(.5);
-    moveBlind(-5,0,.2);
-    Sleep(.5);
-    moveBlind(0,0,.2);
-    Sleep(.5);
-    return 0;
 
     RPS.InitializeTouchMenu();
     setupRun();
@@ -107,12 +87,16 @@ int main(){
 
 
     //Performance Test 1
-    moveBlindTo(-12,-22,.5);
-    moveBlindTo(-7,-22,.5);
-    moveBlindTo(-12,-1,.5);
-    moveBlindTo(-12,18,.5);
-    moveBlindTo(12,18,.5);
-    moveBlindTo(12,-18,.5);
+
+    moveBlindTo(-12,-22,1);
+    moveBlindTo(-7,-22,1);
+    moveBlindTo(-8,-22,1);
+    moveBlindTo(-7,-10,1);
+
+    moveBlindTo(-14,-2,1);
+    moveBlindTo(-12,30,1);
+    moveBlindTo(12,30,1);
+    moveBlindTo(12,-18,1);
 
     //
 
@@ -335,11 +319,11 @@ void moveBlind(float angle, float distance, float speedPercent){
     float speed = moveAtAngleRelCourse(angle, speedPercent);
     float endTime = TimeNow()+distance/speed;
     while(TimeNow()<endTime);
-    if(!updatePosition){//in case RPS fails
-        Robot.x += speed*distance*cos(PI_180*angle);
-        Robot.y += speed*distance*sin(PI_180*angle);
+    //if(!updatePosition){//in case RPS fails
+        Robot.x += distance*cos(PI_180*angle);
+        Robot.y += distance*sin(PI_180*angle);
         doc("CalcPosition", Robot.x, Robot.y);
-    }
+    //}
     doc("BlindMove finished");
     halt();
 }
