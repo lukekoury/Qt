@@ -1,0 +1,2 @@
+   text	   data	    bss	    dec	    hex	filename
+  33120	   3424	   5616	  42160	   a4b0	../untitled.elf

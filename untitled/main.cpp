@@ -45,6 +45,7 @@ void doc(const char *text, float a, float b, float c, float d);
 bool startWithCds();
 void setupRun();
 void calibrateCds();
+void calibrateRPS();
 void waitForTouch();
 bool updatePosition();
 
@@ -64,7 +65,7 @@ void moveBlind(float angle, float distance, float speedPercent);
 void moveBlindTo(float x, float y, float speedPercent);
 void moveTo1(float x, float y);
 void moveTo2(float x, float y);
-void rotateBy(float angle);
+void rotateBy(float angle, float speedPercent);
 void rotateTo(float heading);
 
 
@@ -77,31 +78,22 @@ int main(){
     waitForTouch();
     startWithCds();
 
-    while(true){
-        float sum=0;
-        int numCalibrations=20;
-        for(int i=0; i<numCalibrations; i++){
-            sum+=cds.Value();
-            Sleep(10);
-        }
-        cdsControl = sum / numCalibrations;
-        LCD.WriteLine(cdsControl);
-    }
+    //
 
-    for(int i=0; i<360; i+=10){
-        moveBlind(i, 2, 1.0);
-    }
+    moveTo1(-12,-12);
 
-//    doc("Program halted");
-//    SD.CloseLog();
+    //
+
+    doc("Program halted");
+    SD.CloseLog();
 }
 
 // STARTUP AND BOOKKEEPING ####################################################
 
 void setupRun(){
     SD.OpenLog();
+    calibrateRPS();
     calibrateCds();
-    Robot = {0,0,0,0};
 }
 
 void calibrateCds(){
@@ -118,27 +110,39 @@ void calibrateCds(){
     cdsControl = sum / numCalibrations;
     doc("cds control:", cdsControl);
 }
+void cdsMeterMode(){
+    while(true){
+        float sum=0;
+        int numCalibrations=20;
+        for(int i=0; i<numCalibrations; i++){
+            sum+=cds.Value();
+            Sleep(10);
+        }
+        cdsControl = sum / numCalibrations;
+        LCD.Clear();
+        LCD.WriteLine(cdsControl);
+    }
+}
 void calibrateRPS(){
     startX=RPS.X();
     startY=RPS.Y();
+    updatePosition();
 }
 void waitForTouch(){
     float x,y;
     while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
     while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
     while(LCD.Touch(&x,&y)) Sleep(1); //until released
-    LCD.Clear(SCARLET);
     Buzzer.Beep();
 }
 bool startWithCds(){
-    float readings[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-    float sum=0;
+    float readings[20]={4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4};
+    float sum=4*20;
     float m=cdsControl*0.8;//threshhold in volts TODO:Calibrate
     int panicTime = TimeNow() + 60; //after 60 seconds, go anyway.
     while(sum/20>m){
         if(TimeNow()>panicTime){
             doc("Going without CdS.");
-            LCD.Clear(BLACK);
             return false;
         }
         //move only after average of 20 under threshold.
@@ -149,10 +153,10 @@ bool startWithCds(){
         sum+=readings[19];
         Sleep(5);
     }
-    doc("Going with CdS.");
-    LCD.Clear(BLACK);
+    doc("Going with CdS.", sum/20, m);
     return true;
 }
+
 void doc(const char *text){
     SD.Printf(FRMT, TimeNow());
     SD.Printf(text); LCD.Write(text);
@@ -192,6 +196,7 @@ void doc(const char *text, float a, float b, float c, float d){
 // MOVEMENT AND NAVIGATION ###################################################
 
 bool updatePosition(){
+    //THis is the only place we need to worry about how RPS works.
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
     float heading = RPS.Heading();
@@ -235,7 +240,7 @@ void moveTo1(float x, float y){
         if(!updatePosition()){//in case RPS fails
             Robot.x = x;
             Robot.y = y;
-            doc("CalcPosition", Robot.x, Robot.y);
+            doc("CalcPos", Robot.x, Robot.y);
         }
     } else {
         moveTo1(x,y);
@@ -265,13 +270,25 @@ void rotateTo(float heading){
     if(fabs(to-from)<180){
         rotationAngle=to-from;
     }else if(to>from){
-        rotationAngle= -from+(to-360);
+        rotationAngle=-from+(to-360);
     }else if(to<from){
-        rotationAngle= (360-from)+to;
+        rotationAngle=(360-from)+to;
     }
     doc("Rot from/to/by:", from, to, rotationAngle);
-    rotateBy(rotationAngle);
-    //Maybe check and adjust?
+    float angleSpeed=1;
+    if(fabs(rotationAngle)<90) angleSpeed=fabs(rotationAngle/90);
+    rotateBy(rotationAngle, angleSpeed);
+
+    //Check and adjust until within 5 degrees
+    if(updatePosition()){
+        float newAngle = principal(heading-Robot.heading);
+        if(newAngle>5 && newAngle<355){
+            rotateTo(heading);
+        }
+    } else {
+        Robot.heading=heading;
+    }
+
 }
 
 void moveBlind(float angle, float distance, float speedPercent){
@@ -335,7 +352,6 @@ void setWheels(float fl, float fr, float bl, float br){
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
     doc("RelRobot: ", heading, speedPercent);
-    //TODO: MAKE SURE THIS IS HOW HEADINGS WORK
     return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), 1.0);
 }
 
@@ -345,16 +361,15 @@ float moveAtAngleRelCourse(float heading, float speedPercent){
 }
 
 void setRotation(float direction){
-    if(fabs(direction)>1) direction/=fabs(direction);
+    if(fabs(direction)>1) direction=(direction>0? 1:-1);
     doc("Setting Rotation:", direction);
     setWheels(direction, direction, direction, direction);
 }
 
-void rotateBy(float angle){
+void rotateBy(float angle, float speedPercent){
     doc("Rotating by:", angle);
-    //TODO: MAKE SURE THIS IS HOW HEADINGS WORK
-    setRotation(angle>0? 1:-1);
-    float timeEnd=TimeNow()+angle/ROTATIONCONSTANT;
+    setRotation(speedPercent*(angle>0? 1:-1));
+    float timeEnd=TimeNow()+angle/(speedPercent*ROTATIONCONSTANT);
     while(TimeNow()<timeEnd);
     halt();
     if(!updatePosition) Robot.heading=principal(Robot.heading+angle);
@@ -363,6 +378,7 @@ void rotateBy(float angle){
 
 
 // MATH FUNCTIONS WITHOUT SIDE EFFECTS ##########################################
+
 float principal(float x){
     while(x>=360)x-=360;
     while(x<0)x+=360;
