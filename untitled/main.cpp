@@ -10,7 +10,7 @@
 #include <FEHBuzzer.h>
 
 #define PI_180 0.0174532925
-#define SPEEDCONSTANT 12.41 //inches per second TODO: Calibrate
+#define SPEEDCONSTANT 13.9 //inches per second TODO: Calibrate
 #define ROTATIONCONSTANT 170.74 //degrees per second TODO: Calibrate
 #define FRMT "%.2f "
 
@@ -75,6 +75,27 @@ void rotateTo(float heading);
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
+//    moveBlind(90,5,.2);
+//    Sleep(.5);
+//    moveBlind(180,5,.2);
+//    Sleep(.5);
+//    moveBlind(270,5,.2);
+//    Sleep(.5);
+//    moveBlind(0,5,.2);
+//    Sleep(.5);
+//    return 0;
+    setupRun();
+    Robot={0,0,0,0};
+    moveBlindTo(0,5,.2);
+    Sleep(.5);
+    moveBlind(-5,5,.2);
+    Sleep(.5);
+    moveBlind(-5,0,.2);
+    Sleep(.5);
+    moveBlind(0,0,.2);
+    Sleep(.5);
+    return 0;
+
     RPS.InitializeTouchMenu();
     setupRun();
     LCD.WriteRC("Touch to domniate.",6,4);
@@ -84,13 +105,14 @@ int main(){
 
     //
 
+
     //Performance Test 1
-    moveTo1(-12,-22);
-    moveBlindTo(-7,-22,1.00);
-    moveTo1(-12,-1);
-    moveTo1(-12,18,1.00);
-    moveTo1(12,18,1.00);
-    moveTo1(12,-18,1.00);
+    moveBlindTo(-12,-22,.5);
+    moveBlindTo(-7,-22,.5);
+    moveBlindTo(-12,-1,.5);
+    moveBlindTo(-12,18,.5);
+    moveBlindTo(12,18,.5);
+    moveBlindTo(12,-18,.5);
 
     //
 
@@ -225,7 +247,7 @@ bool updatePosition(){
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
     float heading = RPS.Heading();
-    if(fabs(heading)>0||fabs(x)>0||fabs(y)>0){
+    if(heading>-1){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
         } else {
@@ -342,9 +364,10 @@ float setVelocityComponents(float right, float forward, float speedPercent){
     if(fabs(m)>.001){
         fl/=m; fr/=m; br/=m; bl/=m;
     }
-    if(fabs(speedPercent)>.001){
-        fl*=speedPercent; fr*=speedPercent; br*=speedPercent; bl*=speedPercent;
-    }
+    fl=fl*speedPercent;
+    fr=fr*speedPercent;
+    br=br*speedPercent;
+    bl=bl*speedPercent;
     setWheels(fl,fr,bl,br);
     //pythagorean between two components of motion to return speed
     float speed = SPEEDCONSTANT * sqrt(fl*fl+fr*fr);
@@ -369,7 +392,7 @@ void setWheels(float fl, float fr, float bl, float br){
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
     doc("RelRobot: ", heading, speedPercent);
-    return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), 1.0);
+    return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), speedPercent);
 }
 
 float moveAtAngleRelCourse(float heading, float speedPercent){
