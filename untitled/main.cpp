@@ -11,8 +11,8 @@
 #include <FEHBattery.h>
 
 #define PI_180 0.0174532925
-#define SPEEDCONSTANT 13.9 //inches per second TODO: Calibrate
-#define ROTATIONCONSTANT 170.74 //degrees per second TODO: Calibrate
+#define SPEEDCONSTANT 13.9 //inches per second
+#define ROTATIONCONSTANT 186.7 //degrees per second
 #define FRMT "%.2f "
 
 using namespace std;
@@ -33,7 +33,7 @@ FEHMotor motorFR(FEHMotor::Motor1,7.2);
 FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
-AnalogInputPin cds(FEHIO::P0_0);//TODO: DECIDE PINS!!!
+AnalogInputPin cds(FEHIO::P0_0);//TODO: DECIDE PINS
 FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
 
@@ -107,7 +107,7 @@ void setupRun(){
     calibrateCds();
     doc("Touch to dominate.");
     waitForTouch();
-    doc("Waiting for CdS.")
+    doc("Waiting for CdS.");
     startWithCds();
 }
 void calibrateCds(){
@@ -164,8 +164,8 @@ bool startWithCds(){
     float readings[numreadings];
     for(int i=0;i<numreadings;i++)readings[i]=4;
     float sum=4*numreadings;
-    float m=cdsControl*0.8;//threshhold in volts TODO:Calibrate
-    int panicTime = TimeNow() + 60; //after 60 seconds, go anyway.
+    float m=cdsControl*0.8; //threshhold in volts TODO:Calibrate
+    int panicTime = TimeNow() + 40; //after 40 seconds, go anyway.
     while(sum/numreadings>m){
         if(TimeNow()>panicTime){
             doc("Going without CdS.");
@@ -324,9 +324,9 @@ void moveBlind(float angle, float distance, float speedPercent){
     halt();
 }
 
-void moveComponents(float x, float y, float sppedPercent){
+void moveComponents(float x, float y, float speedPercent){
     //Don't do it the direct way because the robot could be tilted
-    moveBlindTo(Robot.x+x, Robot.y+y);
+    moveBlindTo(Robot.x+x, Robot.y+y, speedPercent);
 }
 
 void moveBlindTo(float x, float y, float speedPercent){
