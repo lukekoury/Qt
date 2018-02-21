@@ -7,11 +7,12 @@
 #include <FEHSD.h>
 #include <FEHMotor.h>
 #include <FEHServo.h>
+#include <FEHBuzzer.h>
 
 #define PI_180 0.0174532925
 #define SPEEDCONSTANT 12.41 //inches per second TODO: Calibrate
 #define ROTATIONCONSTANT 170.74 //degrees per second TODO: Calibrate
-#define FRMT "%.1f "
+#define FRMT "%.2f "
 
 using namespace std;
 
@@ -24,6 +25,7 @@ struct POS{
 } Robot;
 
 float cdsControl;
+float startX, startY;
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -43,7 +45,7 @@ void doc(const char *text, float a, float b, float c, float d);
 bool startWithCds();
 void setupRun();
 void calibrateCds();
-void waitForInitiation();
+void waitForTouch();
 bool updatePosition();
 
 void setWheels(float fl, float fr, float bl, float br);
@@ -53,6 +55,7 @@ float setVelocityComponents(float right, float forward, float speedPercent);
 float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
 void setRotation(float direction);
+
 float principal(float x);
 float arg(float x1,float y1,float x2,float y2);
 float pythag(float x1,float y1,float x2,float y2);
@@ -70,14 +73,27 @@ void rotateTo(float heading);
 int main(){
     //RPS.InitializeTouchMenu();
     setupRun();
+    LCD.WriteRC("Touch to domniate.",6,4);
+    waitForTouch();
     startWithCds();
+
+    while(true){
+        float sum=0;
+        int numCalibrations=20;
+        for(int i=0; i<numCalibrations; i++){
+            sum+=cds.Value();
+            Sleep(10);
+        }
+        cdsControl = sum / numCalibrations;
+        LCD.WriteLine(cdsControl);
+    }
 
     for(int i=0; i<360; i+=10){
         moveBlind(i, 2, 1.0);
     }
 
-    doc("Program halted");
-    SD.CloseLog();
+//    doc("Program halted");
+//    SD.CloseLog();
 }
 
 // STARTUP AND BOOKKEEPING ####################################################
@@ -86,14 +102,13 @@ void setupRun(){
     SD.OpenLog();
     calibrateCds();
     Robot = {0,0,0,0};
-    updatePosition();
-    waitForInitiation();
 }
 
 void calibrateCds(){
     //takes 1.2 seconds
-    doc("Setting cds control");
-    Sleep(1.0);
+    LCD.WriteRC("Touch to calubrate CdS.",6,4);
+    waitForTouch();
+
     float sum=0;
     int numCalibrations=20;
     for(int i=0; i<numCalibrations; i++){
@@ -103,30 +118,35 @@ void calibrateCds(){
     cdsControl = sum / numCalibrations;
     doc("cds control:", cdsControl);
 }
-
-void waitForInitiation(){
+void calibrateRPS(){
+    startX=RPS.X();
+    startY=RPS.Y();
+}
+void waitForTouch(){
     float x,y;
-    LCD.WriteRC("Touch to domniate.",6,2);
     while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
     while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
     while(LCD.Touch(&x,&y)) Sleep(1); //until released
     LCD.Clear(SCARLET);
+    Buzzer.Beep();
 }
-
 bool startWithCds(){
-    float reading=0, oldReading=0, oldOldReading=0;
-    float m=cdsControl-1.0;//threshhold in volts TODO:Calibrate
-    int panicTime = TimeNow() + 5; //after 90 seconds, go anyway.
-    while(reading>m || oldReading>m || oldOldReading>m){
-        //move only after three in a row under threshold.
-        oldOldReading=oldReading;
-        oldReading=reading;
-        reading=cds.Value();
+    float readings[20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    float sum=0;
+    float m=cdsControl*0.8;//threshhold in volts TODO:Calibrate
+    int panicTime = TimeNow() + 60; //after 60 seconds, go anyway.
+    while(sum/20>m){
         if(TimeNow()>panicTime){
             doc("Going without CdS.");
             LCD.Clear(BLACK);
             return false;
         }
+        //move only after average of 20 under threshold.
+        sum-=readings[0];
+        for(int i=0;i<19;i++)
+            readings[i]=readings[i+1];
+        readings[19]=cds.Value();
+        sum+=readings[19];
         Sleep(5);
     }
     doc("Going with CdS.");
@@ -172,8 +192,8 @@ void doc(const char *text, float a, float b, float c, float d){
 // MOVEMENT AND NAVIGATION ###################################################
 
 bool updatePosition(){
-    float x = RPS.X();
-    float y = RPS.Y();
+    float x = RPS.X()-startX;
+    float y = RPS.Y()-startY;
     float heading = RPS.Heading();
     if(fabs(heading)>0){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
@@ -195,20 +215,24 @@ void moveTo1(float x, float y){
     //ALGORITHM 1
     updatePosition();
     float angle=arg(Robot.x, Robot.y, x, y);
+    float distance = pythag(Robot.x,Robot.y, x, y);
     float speed = moveAtAngleRelCourse(angle, 1.0);
-    float distance = pythag(Robot.x,Robot.y, x,y);
+
+    //Go halfway
     float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
-    doc("movingTo1", x, y, distance, halfTime);
+    doc("movingTo1", x, y);
     while(TimeNow()<halfTime);
     if(!updatePosition){//in case RPS fails
         Robot.x += speed*distance*0.5*cos(PI_180*angle);
         Robot.y += speed*distance*0.5*sin(PI_180*angle);
-        doc("CalcPosition", Robot.x, Robot.y);
+        doc("CalcHalfPos", Robot.x, Robot.y);
     }
+
+    //Go the rest of the way
     distance = pythag(Robot.x, Robot.y, x, y);
     if(distance < 3/*ADJUST*/){
-        moveBlindTo(x,y,.5);
-        if(!updatePosition){//in case RPS fails
+        moveBlindTo(x,y,.3);/*ADJUST*/
+        if(!updatePosition()){//in case RPS fails
             Robot.x = x;
             Robot.y = y;
             doc("CalcPosition", Robot.x, Robot.y);
