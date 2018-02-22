@@ -14,6 +14,9 @@
 #define SPEEDCONSTANT 13.9 //inches per second
 #define ROTATIONCONSTANT 186.7 //degrees per second
 #define FRMT "%.2f "
+#define OFF 0
+#define RED 1
+#define BLUE 2
 
 using namespace std;
 
@@ -25,7 +28,7 @@ struct POS{
     float timestamp;
 } Robot;
 
-float cdsControl;
+float cdsControl, redControl;
 float startX, startY;
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
@@ -34,6 +37,7 @@ FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
 AnalogInputPin cds(FEHIO::P0_0);//TODO: DECIDE PINS
+AnalogInputPin cdsRed(FEHIO::P0_0);
 FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
 
@@ -75,8 +79,6 @@ void rotateTo(float heading);
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
-    setupRun();
-
     //
 
     //Performance Test 1
@@ -110,20 +112,6 @@ void setupRun(){
     doc("Waiting for CdS.");
     startWithCds();
 }
-void calibrateCds(){
-    //takes 1.2 seconds
-    LCD.WriteLine("Touch to calibrate CdS.");
-    waitForTouch();
-
-    float sum=0;
-    int numCalibrations=50;
-    for(int i=0; i<numCalibrations; i++){
-        sum+=cds.Value();
-        Sleep(4);
-    }
-    cdsControl = sum / numCalibrations;
-    doc("CdS baseline:", cdsControl);
-}
 void calibrateRPS(){
     startX=RPS.X();
     startY=RPS.Y();
@@ -132,15 +120,19 @@ void calibrateRPS(){
 void meterMode(){
     while(true){
         //CdS
-        float sum=0;
+        float sum=0, redsum=0;
         int numCalibrations=50;
         for(int i=0; i<numCalibrations; i++){
             sum+=cds.Value();
+            redsum+=cdsred.value();
             Sleep(4);
         }
         cdsControl = sum / numCalibrations;
+        cdsRed = redsum / numCalibrations;
         LCD.Clear();
         LCD.Write("CdS: ");
+        LCD.WriteLine(cdsControl);
+        LCD.Write("CdSRed: ");
         LCD.WriteLine(cdsControl);
 
         //RPS
@@ -217,6 +209,40 @@ void doc(const char *text, float a, float b, float c, float d){
     SD.Printf(FRMT, c); LCD.Write(c);
     SD.Printf(FRMT, d); LCD.Write(d);
     SD.Printf("\n"); LCD.Write('\n');
+}
+
+// SENSORS ###################################################################
+
+void calibrateCds(){
+    //takes 1.2 seconds
+    LCD.WriteLine("Touch to calibrate CdS.");
+    waitForTouch();
+    float sum=0, redsum=0;
+    int numCalibrations=50;
+    for(int i=0; i<numCalibrations; i++){
+        sum+=cds.Value();
+        redsum+=cdsRed.Value();
+        Sleep(4);
+    }
+    cdsControl = sum / numCalibrations;
+    redControl = redsum / numCalibrations;
+    doc("CdS baseline:", cdsControl);
+}
+int getColor(){
+    float avg=0; redavg=0;
+    int numCalibrations=50;
+    for(int i=0; i<numCalibrations; i++){
+        avg+=cds.Value()/numCalibrations;
+        redavg+=redsum.Value()/numCalibrations;
+        Sleep(2);
+    }
+
+    bool on = (avg<0.5*cdsControl);
+    bool red = (redavg<0.5*redControl);
+
+    if(!on) return OFF;
+    if(on && !red) return BLUE;
+    if(on && red) return RED;
 }
 
 // MOVEMENT AND NAVIGATION ###################################################
