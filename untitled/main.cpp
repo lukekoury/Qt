@@ -36,7 +36,7 @@ FEHMotor motorFR(FEHMotor::Motor1,7.2);
 FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
-AnalogInputPin cds(FEHIO::P0_0);//TODO: DECIDE PINS
+AnalogInputPin cds(FEHIO::P0_1);//TODO: DECIDE PINS
 AnalogInputPin cdsRed(FEHIO::P0_0);
 FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
@@ -81,6 +81,19 @@ void rotateTo(float heading);
 
 int main(){
     setupRun();
+
+    while(true){
+        switch(getColor()){
+        case REDLIGHT:
+            LCD.Clear(RED);
+        break;
+        case BLUELIGHT:
+            LCD.Clear(BLUE);
+        break;
+        case OFF:
+            LCD.Clear(BLACK);
+        }
+    }
 
     /////////////////////
 
@@ -153,7 +166,7 @@ void meterMode(){
         LCD.Write("CdS: ");
         LCD.WriteLine(cdsControl);
         LCD.Write("CdSRed: ");
-        LCD.WriteLine(cdsControl);
+        LCD.WriteLine(redControl);
 
         //RPS
         LCD.Write("RPS ( ");
@@ -238,7 +251,7 @@ void calibrateCds(){
     LCD.WriteLine("Touch to calibrate CdS.");
     waitForTouch();
     float sum=0, redsum=0;
-    int numCalibrations=50;
+    int numCalibrations=100;
     for(int i=0; i<numCalibrations; i++){
         sum+=cds.Value();
         redsum+=cdsRed.Value();
@@ -247,6 +260,7 @@ void calibrateCds(){
     cdsControl = sum / numCalibrations;
     redControl = redsum / numCalibrations;
     doc("CdS baseline:", cdsControl);
+    doc("Red CdS baseline:", redControl);
 }
 int getColor(){
     float avg=0, redavg=0;
@@ -260,7 +274,7 @@ int getColor(){
     redavg/=numCalibrations;
 
     bool on = (avg<0.5*cdsControl);
-    bool red = (redavg<0.5*redControl);
+    bool red = (redavg<0.8*redControl);
 
     if(!on) return OFF;
     if(on && !red) return BLUELIGHT;
