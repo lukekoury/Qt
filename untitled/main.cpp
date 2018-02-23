@@ -15,8 +15,8 @@
 #define ROTATIONCONSTANT 186.7 //degrees per second
 #define FRMT "%.2f "
 #define OFF 0
-#define RED 1
-#define BLUE 2
+#define REDLIGHT 1
+#define BLUELIGHT 2
 
 using namespace std;
 
@@ -51,6 +51,7 @@ void setupRun();
 bool startWithCds();
 void calibrateCds();
 void calibrateRPS();
+int getColor();
 void meterMode();
 void waitForTouch();
 bool updatePosition();
@@ -79,21 +80,40 @@ void rotateTo(float heading);
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
-    //
+    setupRun();
 
-    //Performance Test 1
+    /////////////////////
 
-    moveComponents(-12,-22,1); //to corner
-    moveComponents(5,0,1); //hit lever
-    moveComponents(-1,0,1); //move west away from lever
-    moveComponents(0,12,1); //move up
+    //Performance Test 2
+    moveComponents(0,-5,1); //exit box
+    moveBlindTo(8.75,-8.5,1); //diagonal to light
 
-    moveComponents(-7,8,1); //get to grass ramp
-    moveComponents(1,30,1); //go up ramp
-    moveComponents(24,0,1); //slide across
-    moveComponents(0,-50,1); //descend ramp and smash buttons
+    int color=getColor();
+    switch(color){
+        case REDLIGHT:
+            LCD.Clear(RED);
+            moveComponents(1.625,0,.3);
+        break;
+        case BLUELIGHT:
+            LCD.Clear(BLUE);
+            moveComponents(-1.625,0,.3);
+        break;
+        case OFF:
+            //ohno.jpg
+        break;
+    }
+    moveComponents(0,-5.25,1);//move to button
+    setVelocityComponents(0,-1,.3); Sleep(.5); halt(); //Push button
+    moveComponents(0,1,1); //back away
 
-    //
+    moveBlindTo(-11,-12.02,1); //move over to wrench
+    setVelocityComponents(-1,0,.3); Sleep(.5); halt(); //Hit wrench
+    moveComponents(1,0,1); //move away from wrench
+
+    moveBlindTo(0,0,1); //move back to start
+    moveComponents(0,10,0); //hit that nut button
+
+    /////////////////////
 
     doc("Program finished.");
     SD.CloseLog();
@@ -124,11 +144,11 @@ void meterMode(){
         int numCalibrations=50;
         for(int i=0; i<numCalibrations; i++){
             sum+=cds.Value();
-            redsum+=cdsred.value();
+            redControl+=cdsRed.Value();
             Sleep(4);
         }
         cdsControl = sum / numCalibrations;
-        cdsRed = redsum / numCalibrations;
+        redControl = redsum / numCalibrations;
         LCD.Clear();
         LCD.Write("CdS: ");
         LCD.WriteLine(cdsControl);
@@ -229,20 +249,22 @@ void calibrateCds(){
     doc("CdS baseline:", cdsControl);
 }
 int getColor(){
-    float avg=0; redavg=0;
+    float avg=0, redavg=0;
     int numCalibrations=50;
     for(int i=0; i<numCalibrations; i++){
-        avg+=cds.Value()/numCalibrations;
-        redavg+=redsum.Value()/numCalibrations;
+        avg+=cds.Value();
+        redavg+=cdsRed.Value();
         Sleep(2);
     }
+    avg/=numCalibrations;
+    redavg/=numCalibrations;
 
     bool on = (avg<0.5*cdsControl);
     bool red = (redavg<0.5*redControl);
 
     if(!on) return OFF;
-    if(on && !red) return BLUE;
-    if(on && red) return RED;
+    if(on && !red) return BLUELIGHT;
+    if(on && red) return REDLIGHT;
 }
 
 // MOVEMENT AND NAVIGATION ###################################################
