@@ -120,11 +120,13 @@ int main(){
     }
 
     moveComponents(0,-5.25,1);//move up to button
-    setVelocityComponents(0,-1,.3); Sleep(.5); halt(); //Push button without changing position
+    //Push button without changing position
+    setVelocityComponents(0,-1,.3); Sleep(.5); halt();
     moveComponents(0,1,1); //back away
 
     moveBlindTo(-11,-12.02,1); //move over to wrench
-    setVelocityComponents(-1,0,.3); Sleep(.5); halt(); //Hit wrench without changing position
+    //Hit wrench without changing position
+    setVelocityComponents(-1,0,.3); Sleep(.5); halt();
     moveComponents(1,0,1); //move away from wrench
 
     moveBlindTo(0,0,1); //move back to start
@@ -290,7 +292,7 @@ void calibrateCds(){
 }
 int getColor(){
     /*
-     * Reads the CdS cells and determines the light color integer code.
+     * Reads the CdS cells and determines the light color #define code.
      */
     float avg=0, redavg=0;
     int numCalibrations=50;
@@ -408,7 +410,8 @@ void rotateTo(float heading){
     doc("Rot from/to/by:", Robot.heading, heading, rotationAngle);
 
     float angleSpeed=1;
-    if(fabs(rotationAngle)<90) angleSpeed=fabs(rotationAngle/90); //slow if small angle
+    //slow if small angle
+    if(fabs(rotationAngle)<90) angleSpeed=fabs(rotationAngle/90);
     rotateBy(rotationAngle, angleSpeed); //do it
 
     //Check and adjust until within 5 degrees
@@ -471,16 +474,13 @@ float setVelocityComponents(float right, float forward, float speedPercent){
     float fr=+forward-right;
     float bl=-forward+right;
     float br=+forward+right;
-
     //Scale back values so speed is maximum and no values greater than 1:
     float m=fmax( fmax( fabs(fl),fabs(fr) ), fmax( fabs(bl),fabs(br) ) );
     if(fabs(m)>.001){
         fl/=m; fr/=m; br/=m; bl/=m;
     }
     fl*=speedPercent; fr*=speedPercent; br*=speedPercent; bl*=speedPercent;
-
     setWheels(fl,fr,bl,br);
-
     //pythagorean between two components of motion to return speed
     float speed = SPEEDCONSTANT * sqrt(fl*fl+fr*fr);
     doc("Wheels set: ",fl,fr);
@@ -508,7 +508,10 @@ float moveAtAngleRelRobot(float heading, float speedPercent){
      *  Sets Robot moving at an angle (0=right)
      */
     doc("RelRobot: ", heading, speedPercent);
-    return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), speedPercent);
+    return setVelocityComponents(
+                cos(PI_180*heading),
+                sin(PI_180*heading),
+                speedPercent);
 }
 float moveAtAngleRelCourse(float heading, float speedPercent){
     /*
@@ -558,7 +561,7 @@ float pythag(float x1, float y1, float x2, float y2){
     return sqrt(pow(y2-y1,2)+pow(x2-x1,2));
 }
 float deltaAngle(float from, float to){
-    //returns the angle from 'from' to 'to'. Between -180 and 180.
+    //returns the angle change from 'from' to 'to'. Between -180 and 180.
     to = principal(to);
     from = principal(from);
     float rotationAngle=0;
@@ -566,9 +569,9 @@ float deltaAngle(float from, float to){
         rotationAngle=to-from;
     //But when there is a problem:
     }else if(to>from){ //from Quadrant 3or4 to Quadrant 1or2
-        rotationAngle=-from+(to-360);
+        rotationAngle=to-from-360;
     }else if(to<from){ //from Quadrant 1or2 to Quadrant 3or4
-        rotationAngle=(360-from)+to;
+        rotationAngle=to-from+360;
     }
     return rotationAngle;
 }
