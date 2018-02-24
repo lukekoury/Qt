@@ -25,7 +25,7 @@ struct POS{
     float x;
     float y;
     float heading;
-    float timestamp;
+    float timestamp; //when this was last updated
 } Robot;
 
 float cdsControl, redControl;
@@ -82,45 +82,49 @@ void rotateTo(float heading);
 int main(){
     setupRun();
 
-    while(true){
-        switch(getColor()){
-        case REDLIGHT:
-            LCD.Clear(RED);
-        break;
-        case BLUELIGHT:
-            LCD.Clear(BLUE);
-        break;
-        case OFF:
-            LCD.Clear(BLACK);
-        }
-    }
+    //To debug color detector:
+    //while(true)getColor();
 
     /////////////////////
 
     //Performance Test 2
+
     moveComponents(0,-5,1); //exit box
     moveBlindTo(8.75,-8.5,1); //diagonal to light
-
     int color=getColor();
+
+    //idk just in case go in a square spiral
+        float d=1; //length of ssegments in spiral
+        while(color==OFF){
+            for(int i=0;i<360;i+=90){ //cardinal directions
+                for(int j=0; j<d; j++){ //length
+                    moveBlind(i,1,.3);
+                    color=getColor();
+                    if(color!=OFF) break;
+                }
+                if(color!=OFF) break;
+                d+=0.5;
+            }
+        }
+    //We must've found the light, so we are here:
+    Robot.x=8.75; Robot.y=-8.5;
     switch(color){
         case REDLIGHT:
             LCD.Clear(RED);
-            moveComponents(1.625,0,.3);
+            moveComponents(1.8,0,.3); //left to button
         break;
         case BLUELIGHT:
             LCD.Clear(BLUE);
-            moveComponents(-1.625,0,.3);
-        break;
-        case OFF:
-            //ohno.jpg
+            moveComponents(-1.45,0,.3); //right to button
         break;
     }
-    moveComponents(0,-5.25,1);//move to button
-    setVelocityComponents(0,-1,.3); Sleep(.5); halt(); //Push button
+
+    moveComponents(0,-5.25,1);//move up to button
+    setVelocityComponents(0,-1,.3); Sleep(.5); halt(); //Push button without changing position
     moveComponents(0,1,1); //back away
 
     moveBlindTo(-11,-12.02,1); //move over to wrench
-    setVelocityComponents(-1,0,.3); Sleep(.5); halt(); //Hit wrench
+    setVelocityComponents(-1,0,.3); Sleep(.5); halt(); //Hit wrench without changing position
     moveComponents(1,0,1); //move away from wrench
 
     moveBlindTo(0,0,1); //move back to start
@@ -135,6 +139,9 @@ int main(){
 // STARTUP AND BOOKKEEPING ####################################################
 
 void setupRun(){
+    /*
+     *  Subroutine for starting up a run.
+     */
     //RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
@@ -146,11 +153,17 @@ void setupRun(){
     startWithCds();
 }
 void calibrateRPS(){
+    /*
+     *  Make the current position the origin.
+     */
     startX=RPS.X();
     startY=RPS.Y();
     updatePosition();
 }
 void meterMode(){
+    /*
+     *  Turn the robot into a "meter" for debugging sensors
+     */
     while(true){
         //CdS
         float sum=0, redsum=0;
@@ -178,6 +191,10 @@ void meterMode(){
     }
 }
 void waitForTouch(){
+    /*
+     *  Wait until the screen is touched.
+     *  Beep when touched.
+     */
     float x,y;
     while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
     while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
@@ -185,11 +202,15 @@ void waitForTouch(){
     Buzzer.Beep();
 }
 bool startWithCds(){
+    /*
+     *  Wait until the CdS sensor consistently reads bright (low) values.
+     *  Return true if successful.
+     */
     int numreadings = 50;
     float readings[numreadings];
     for(int i=0;i<numreadings;i++)readings[i]=4;
     float sum=4*numreadings;
-    float m=cdsControl*0.8; //threshhold in volts TODO:Calibrate
+    float m=cdsControl*0.8; //threshhold in volts (20% brightness)
     int panicTime = TimeNow() + 40; //after 40 seconds, go anyway.
     while(sum/numreadings>m){
         if(TimeNow()>panicTime){
@@ -208,6 +229,7 @@ bool startWithCds(){
     return true;
 }
 
+//polymorphic function for displaying stuff on screen and logging to the SD card
 void doc(const char *text){
     SD.Printf(FRMT, TimeNow());
     SD.Printf(text); LCD.Write(text);
@@ -247,9 +269,13 @@ void doc(const char *text, float a, float b, float c, float d){
 // SENSORS ###################################################################
 
 void calibrateCds(){
-    //takes 1.2 seconds
+    /*
+     * Reads the CdS cell average, and sets control to it.
+     * Takes 1.4 seconds in total.
+     */
     LCD.WriteLine("Touch to calibrate CdS.");
     waitForTouch();
+    Sleep(1.0); //Wait a bit to avoid interfenece of user
     float sum=0, redsum=0;
     int numCalibrations=100;
     for(int i=0; i<numCalibrations; i++){
@@ -263,6 +289,9 @@ void calibrateCds(){
     doc("Red CdS baseline:", redControl);
 }
 int getColor(){
+    /*
+     * Reads the CdS cells and determines the light color integer code.
+     */
     float avg=0, redavg=0;
     int numCalibrations=50;
     for(int i=0; i<numCalibrations; i++){
@@ -273,22 +302,30 @@ int getColor(){
     avg/=numCalibrations;
     redavg/=numCalibrations;
 
-    bool on = (avg<0.5*cdsControl);
-    bool red = (redavg<0.8*redControl);
+    float brightness = (cdsControl-avg)/cdsControl;
+    float redness = (redControl-redavg)/redControl;
 
-    if(!on) return OFF;
-    if(on && !red) return BLUELIGHT;
-    if(on && red) return REDLIGHT;
+    int color;
+
+    if(brightness<.3) color=OFF;
+    else if(redness>.5*brightness) color=REDLIGHT;
+    else color=BLUELIGHT;
+
+    doc("Bright/red, color", brightness, redness, color);
+    return color;
 }
 
 // MOVEMENT AND NAVIGATION ###################################################
 
 bool updatePosition(){
-    //This is the only place we need to worry about how RPS works.
+    /*
+     *  Reads the RPS data into the 'Robot' global variable
+     *  This is the only place we need to worry about how RPS works.
+     */
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
     float heading = RPS.Heading();
-    if(heading>-1){
+    if(heading>-1){ //TODO: fix this when we figure it out.
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
         } else {
@@ -305,7 +342,13 @@ bool updatePosition(){
 }
 
 void moveTo1(float x, float y){
-    //ALGORITHM 1
+    /*
+     * MOTION ALGOTITHM 1
+     * Moves robot to definite position (x,y):
+     * 1. go halfway
+     * 2. adjust course and repeat 1
+     * 3. When close enough, just go all the way.
+     */
     updatePosition();
     float angle=arg(Robot.x, Robot.y, x, y);
     float distance = pythag(Robot.x,Robot.y, x, y);
@@ -337,7 +380,12 @@ void moveTo1(float x, float y){
 }
 
 void moveTo2(float x, float y){
-    //ALGORITHM 2
+    /*
+     * MOTION ALGOTITHM 2
+     * Moves robot to definite position (x,y):
+     * 1. go all the way
+     * 2. check and adjust position
+     */
     updatePosition();
     float speed = moveAtAngleRelCourse(arg(Robot.x, Robot.y, x, y), 1.0);
     float distance = pythag(Robot.x, Robot.y, x, y);
@@ -352,21 +400,25 @@ void moveTo2(float x, float y){
 }
 
 void rotateTo(float heading){
+    /*
+     *  Rotates the robot to face the specified heading.
+     */
     updatePosition();
     float rotationAngle=deltaAngle(Robot.heading, heading);
     doc("Rot from/to/by:", Robot.heading, heading, rotationAngle);
 
     float angleSpeed=1;
-    if(fabs(rotationAngle)<90) angleSpeed=fabs(rotationAngle/90);
-    rotateBy(rotationAngle, angleSpeed);
+    if(fabs(rotationAngle)<90) angleSpeed=fabs(rotationAngle/90); //slow if small angle
+    rotateBy(rotationAngle, angleSpeed); //do it
 
     //Check and adjust until within 5 degrees
-    if(updatePosition()){
+    if(updatePosition()){ //if RPS available, check and re-rotate
         float newAngle = principal(heading-Robot.heading);
-        if( fabs(deltaAngle(Robot.heading, heading))>5 ){
-            rotateTo(heading);
+        if( fabs(deltaAngle(Robot.heading, heading))>5 /*ADJUST*/){
+            rotateTo(heading); //recursion is always good and cool. /s
         }
     } else {
+        //assume we're correct
         Robot.heading=heading;
     }
 
@@ -377,7 +429,7 @@ void moveBlind(float angle, float distance, float speedPercent){
     float speed = moveAtAngleRelCourse(angle, speedPercent);
     float endTime = TimeNow()+distance/speed;
     while(TimeNow()<endTime);
-    //if(!updatePosition){//in case RPS fails
+    //if(!updatePosition){ //in case RPS fails
         Robot.x += distance*cos(PI_180*angle);
         Robot.y += distance*sin(PI_180*angle);
         doc("CalcPosition", Robot.x, Robot.y);
@@ -387,35 +439,48 @@ void moveBlind(float angle, float distance, float speedPercent){
 }
 
 void moveComponents(float x, float y, float speedPercent){
-    //Don't do it the direct way because the robot could be tilted
+    /*
+     * Moves robot by <x,y> without the help of RPS.
+     *
+     * Note: we don't do this directl with setVelocityComponents
+     *       because the robot could be tilted
+     */
     moveBlindTo(Robot.x+x, Robot.y+y, speedPercent);
 }
-
 void moveBlindTo(float x, float y, float speedPercent){
+    /*
+     * Moves the robot to (x,y) with out help of RPS.
+     */
     float angle = arg(Robot.x, Robot.y, x, y);
     float distance = pythag(Robot.x, Robot.y, x, y);
     moveBlind(angle, distance, speedPercent);
 }
 
 float setVelocityComponents(float right, float forward, float speedPercent){
-    //arguments between -1 and 1
-    //Ex: setVelocityComponents(-1, 1, 0.75);
-    //will set Robot going forward and to the left at 75% Speed
-    //returns speed
+    /*
+     *  Sets the x- and y-velocities at speedPercent of the maximum.
+     *  arguments between -1 and 1.
+     *
+     *  Ex: setVelocityComponents(-1, 1, 0.75); will set Robot going forward
+     *       and to the left at 75% Speed
+     *  returns speed in inches/second
+     */
+
+    //Wheel values based on orientation of wheels:
     float fl=-forward-right;
     float fr=+forward-right;
     float bl=-forward+right;
     float br=+forward+right;
-    //Scale back so speed is maximum and no overflow:
+
+    //Scale back values so speed is maximum and no values greater than 1:
     float m=fmax( fmax( fabs(fl),fabs(fr) ), fmax( fabs(bl),fabs(br) ) );
     if(fabs(m)>.001){
         fl/=m; fr/=m; br/=m; bl/=m;
     }
-    fl=fl*speedPercent;
-    fr=fr*speedPercent;
-    br=br*speedPercent;
-    bl=bl*speedPercent;
+    fl*=speedPercent; fr*=speedPercent; br*=speedPercent; bl*=speedPercent;
+
     setWheels(fl,fr,bl,br);
+
     //pythagorean between two components of motion to return speed
     float speed = SPEEDCONSTANT * sqrt(fl*fl+fr*fr);
     doc("Wheels set: ",fl,fr);
@@ -429,8 +494,9 @@ void halt(){
 }
 
 void setWheels(float fl, float fr, float bl, float br){
-    //Sets wheels to given speeds
-    //TODO: include calibrations for wheels
+    /*
+     *  Sets wheels to given speeds
+     */
     motorFL.SetPercent(100.0*fl);
     motorFR.SetPercent(100.0*fr);
     motorBL.SetPercent(100.0*bl);
@@ -438,19 +504,33 @@ void setWheels(float fl, float fr, float bl, float br){
 }
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
+    /*
+     *  Sets Robot moving at an angle (0=right)
+     */
     doc("RelRobot: ", heading, speedPercent);
     return setVelocityComponents(cos(PI_180*heading), sin(PI_180*heading), speedPercent);
 }
 float moveAtAngleRelCourse(float heading, float speedPercent){
+    /*
+     *  Sets Robot moving at an angle (0=East)
+     */
     doc("RelCourse: ", heading, speedPercent);
     return moveAtAngleRelRobot(heading-Robot.heading, speedPercent);
 }
 void setRotation(float direction){
+    /*
+     *  Sets Robot Rotating at given speed/direction
+     *  Ex. setRotation(.5); makes robot start spinning counterclockwise
+     *      at 50% speed.
+     */
     if(fabs(direction)>1) direction=(direction>0? 1:-1);
     doc("Setting Rotation:", direction);
     setWheels(direction, direction, direction, direction);
 }
 void rotateBy(float angle, float speedPercent){
+    /*
+     *  Rotates robot by given angle and %speed.
+     */
     doc("Rotating by:", angle);
     setRotation(speedPercent*(angle>0? 1:-1));
     float timeEnd=TimeNow()+angle/(speedPercent*ROTATIONCONSTANT);
@@ -461,8 +541,10 @@ void rotateBy(float angle, float speedPercent){
 }
 
 // MATH FUNCTIONS WITHOUT SIDE EFFECTS #######################################
+//      note: angles measured counteclockwise from +x axis
 
 float principal(float x){
+    //returns x's coterminal angle in [0,360).
     while(x>=360)x-=360;
     while(x<0)x+=360;
     return x;
@@ -480,11 +562,12 @@ float deltaAngle(float from, float to){
     to = principal(to);
     from = principal(from);
     float rotationAngle=0;
-    if(fabs(to-from)<180){
+    if(fabs(to-from)<180){ //if no problem with 0=360
         rotationAngle=to-from;
-    }else if(to>from){
+    //But when there is a problem:
+    }else if(to>from){ //from Quadrant 3or4 to Quadrant 1or2
         rotationAngle=-from+(to-360);
-    }else if(to<from){
+    }else if(to<from){ //from Quadrant 1or2 to Quadrant 3or4
         rotationAngle=(360-from)+to;
     }
     return rotationAngle;
