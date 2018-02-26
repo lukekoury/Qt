@@ -82,54 +82,18 @@ void rotateTo(float heading);
 int main(){
     setupRun();
 
-    //To debug color detector:
-    //while(true)getColor();
-
     /////////////////////
 
-    //Performance Test 2
+    //RPS Test
 
-    moveComponents(0,-5,1); //exit box
-    moveBlindTo(8.75,-8.5,1); //diagonal to light
-    int color=getColor();
+    moveTo1(0,-6);
+    moveTo1(-6,-6);
+    moveTo1(-6,10);
+    moveTo1(6,10);
+    moveTo1(6,-6);
+    moveTo1(0,-6);
+    moveTo1(0,0);
 
-    //idk just in case go in a square spiral
-    float d=1; //length of segments in spiral
-    for(int i=0;i<360*5;i+=90){ //cardinal directions
-        for(int j=0; j<d; j++){ //length
-            moveBlind(i,1,.3);
-            color=getColor();
-            if(color!=OFF) break;
-        }
-            if(color!=OFF) break;
-            d+=0.5;
-    }
-
-    //We must've found the light, so we are here:
-    Robot.x=8.75; Robot.y=-8.5;
-    switch(color){
-        case REDLIGHT:
-            LCD.Clear(RED);
-            moveComponents(1.8,0,.3); //left to button
-        break;
-        case BLUELIGHT:
-            LCD.Clear(BLUE);
-            moveComponents(-1.45,0,.3); //right to button
-        break;
-    }
-
-    moveComponents(0,-5.25,1);//move up to button
-    //Push button without changing position
-    setVelocityComponents(0,-1,.3); Sleep(.5); halt();
-    moveComponents(0,1,1); //back away
-
-    moveBlindTo(-11,-12,1); //move over to wrench
-    //Hit wrench without changing position
-    setVelocityComponents(-1,0,.3); Sleep(.5); halt();
-    moveComponents(1,0,1); //move away from wrench
-
-    moveBlindTo(0,-5,1); //move back to starting x-position
-    moveComponents(0,10,0); //hit that nut button
 
     /////////////////////
 
@@ -143,7 +107,7 @@ void setupRun(){
     /*
      *  Subroutine for starting up a run.
      */
-    //RPS.InitializeTouchMenu();
+    RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
     calibrateRPS();
@@ -160,6 +124,17 @@ void calibrateRPS(){
     startX=RPS.X();
     startY=RPS.Y();
     updatePosition();
+}
+void waitForTouch(){
+    /*
+     *  Wait until the screen is touched.
+     *  Beep when touched.
+     */
+    float x,y;
+    while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
+    while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
+    while(LCD.Touch(&x,&y)) Sleep(1); //until released
+    Buzzer.Beep();
 }
 void meterMode(){
     /*
@@ -190,44 +165,6 @@ void meterMode(){
         LCD.Write(" )\nH ");
         LCD.WriteLine(RPS.Heading());
     }
-}
-void waitForTouch(){
-    /*
-     *  Wait until the screen is touched.
-     *  Beep when touched.
-     */
-    float x,y;
-    while(LCD.Touch(&x,&y)) Sleep(1); //until untouched
-    while(!LCD.Touch(&x,&y)) Sleep(1); //until pressed
-    while(LCD.Touch(&x,&y)) Sleep(1); //until released
-    Buzzer.Beep();
-}
-bool startWithCds(){
-    /*
-     *  Wait until the CdS sensor consistently reads bright (low) values.
-     *  Return true if successful.
-     */
-    int numreadings = 50;
-    float readings[numreadings];
-    for(int i=0;i<numreadings;i++)readings[i]=4;
-    float sum=4*numreadings;
-    float m=cdsControl*0.8; //threshhold in volts (20% brightness)
-    int panicTime = TimeNow() + 40; //after 40 seconds, go anyway.
-    while(sum/numreadings>m){
-        if(TimeNow()>panicTime){
-            doc("Going without CdS.");
-            return false;
-        }
-        //move only after average of 20 under threshold.
-        sum-=readings[0];
-        for(int i=0;i<numreadings-1;i++)
-            readings[i]=readings[i+1];
-        readings[numreadings-1]=cds.Value();
-        sum+=readings[numreadings-1];
-        Sleep(2);
-    }
-    doc("Going with CdS.", sum/numreadings, m);
-    return true;
 }
 
 //polymorphic function for displaying stuff on screen and logging to the SD card
@@ -289,6 +226,33 @@ void calibrateCds(){
     doc("CdS baseline:", cdsControl);
     doc("Red CdS baseline:", redControl);
 }
+bool startWithCds(){
+    /*
+     *  Wait until the CdS sensor consistently reads bright (low) values.
+     *  Return true if successful.
+     */
+    int numreadings = 50;
+    float readings[numreadings];
+    for(int i=0;i<numreadings;i++)readings[i]=4;
+    float sum=4*numreadings;
+    float m=cdsControl*0.8; //threshhold in volts (20% brightness)
+    int panicTime = TimeNow() + 40; //after 40 seconds, go anyway.
+    while(sum/numreadings>m){
+        if(TimeNow()>panicTime){
+            doc("Going without CdS.");
+            return false;
+        }
+        //move only after average of 20 under threshold.
+        sum-=readings[0];
+        for(int i=0;i<numreadings-1;i++)
+            readings[i]=readings[i+1];
+        readings[numreadings-1]=cds.Value();
+        sum+=readings[numreadings-1];
+        Sleep(2);
+    }
+    doc("Going with CdS.", sum/numreadings, m);
+    return true;
+}
 int getColor(){
     /*
      * Reads the CdS cells and determines the light color #define code.
@@ -309,7 +273,7 @@ int getColor(){
     int color;
 
     if(brightness<.3) color=OFF;
-    else if(redness>.5*brightness) color=REDLIGHT;
+    else if(redness>.8*brightness) color=REDLIGHT;
     else color=BLUELIGHT;
 
     doc("Bright/red, color", brightness, redness, color);
@@ -326,9 +290,10 @@ bool updatePosition(){
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
     float heading = RPS.Heading();
-    if(heading>-1){ //TODO: fix this when we figure it out.
+    if(heading>-1){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
+            return false;
         } else {
             Robot.x = x;
             Robot.y = y;
@@ -427,15 +392,19 @@ void rotateTo(float heading){
 }
 
 void moveBlind(float angle, float distance, float speedPercent){
+    /*
+     * Moves robot at angle(RelCourse) by distance at speedPercent
+     *
+     */
     doc("BlindMove", angle, distance);
     float speed = moveAtAngleRelCourse(angle, speedPercent);
     float endTime = TimeNow()+distance/speed;
     while(TimeNow()<endTime);
-    //if(!updatePosition){ //in case RPS fails
+    if(!updatePosition){ //in case RPS fails
         Robot.x += distance*cos(PI_180*angle);
         Robot.y += distance*sin(PI_180*angle);
         doc("CalcPosition", Robot.x, Robot.y);
-    //}
+    }
     doc("BlindMove finished");
     halt();
 }
