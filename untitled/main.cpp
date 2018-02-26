@@ -94,18 +94,17 @@ int main(){
     int color=getColor();
 
     //idk just in case go in a square spiral
-        float d=1; //length of ssegments in spiral
-        while(color==OFF){
-            for(int i=0;i<360;i+=90){ //cardinal directions
-                for(int j=0; j<d; j++){ //length
-                    moveBlind(i,1,.3);
-                    color=getColor();
-                    if(color!=OFF) break;
-                }
-                if(color!=OFF) break;
-                d+=0.5;
-            }
+    float d=1; //length of segments in spiral
+    for(int i=0;i<360*5;i+=90){ //cardinal directions
+        for(int j=0; j<d; j++){ //length
+            moveBlind(i,1,.3);
+            color=getColor();
+            if(color!=OFF) break;
         }
+            if(color!=OFF) break;
+            d+=0.5;
+    }
+
     //We must've found the light, so we are here:
     Robot.x=8.75; Robot.y=-8.5;
     switch(color){
@@ -124,12 +123,12 @@ int main(){
     setVelocityComponents(0,-1,.3); Sleep(.5); halt();
     moveComponents(0,1,1); //back away
 
-    moveBlindTo(-11,-12.02,1); //move over to wrench
+    moveBlindTo(-11,-12,1); //move over to wrench
     //Hit wrench without changing position
     setVelocityComponents(-1,0,.3); Sleep(.5); halt();
     moveComponents(1,0,1); //move away from wrench
 
-    moveBlindTo(0,0,1); //move back to start
+    moveBlindTo(0,-5,1); //move back to starting x-position
     moveComponents(0,10,0); //hit that nut button
 
     /////////////////////
