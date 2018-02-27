@@ -118,7 +118,6 @@ void setupRun(){
     doc("Waiting for CdS.");
     startWithCds();
 }
-
 void waitForTouch(){
     /*
      *  Wait until the screen is touched.
@@ -319,7 +318,6 @@ void moveTo1(float x, float y){
         moveTo1(x,y);
     }
 }
-
 void moveTo2(float x, float y){
     /*
      * MOTION ALGOTITHM 2
@@ -341,7 +339,6 @@ void moveTo2(float x, float y){
         Robot.y = y;
     }
 }
-
 void pushAgainst(float heading, float speedPercent, float time){
     /*
      * Blindly turn on the motors to push in a particular direction.
@@ -356,7 +353,6 @@ void pushAgainst(float heading, float speedPercent, float time){
     updatePosition(); //if this fails, assume we didn't move.
 
 }
-
 void rotateTo(float heading){
     /*
      *  Rotates the robot to face the specified heading.
@@ -385,8 +381,8 @@ void rotateTo(float heading){
 
 void moveBlind(float angle, float distance, float speedPercent){
     /*
-     * Moves robot at angle(RelCourse) by distance at speedPercent
-     *
+     * Moves robot at angle (RelCourse), by distance, at speedPercent,
+     * without RPS.
      */
     doc("BlindMove", angle, distance);
     float speed = moveAtAngleRelCourse(angle, speedPercent);
@@ -398,14 +394,14 @@ void moveBlind(float angle, float distance, float speedPercent){
         doc("CalcPosition", Robot.x, Robot.y);
     }
     doc("BlindMove finished");
+    updatePosition();
     halt();
 }
 
 void moveComponents(float x, float y, float speedPercent){
     /*
      * Moves robot by <x,y> without the help of RPS.
-     *
-     * Note: we don't do this directl with setVelocityComponents
+     * Note: we don't do this directly with setVelocityComponents
      *       because the robot could be tilted
      */
     moveBlindTo(Robot.x+x, Robot.y+y, speedPercent);
@@ -455,7 +451,10 @@ void halt(){
 
 void setWheels(float fl, float fr, float bl, float br){
     /*
-     *  Sets wheels to given speeds
+     *  Sets wheels to given speeds.
+     *  Positive is counterclockwise from perspective of robot;
+     *  Ex: setWheels(1,1,1,1);
+     *      will make the robot spin counterclockwise real fast.
      */
     motorFL.SetPercent(100.0*fl);
     motorFR.SetPercent(100.0*fr);
@@ -465,7 +464,7 @@ void setWheels(float fl, float fr, float bl, float br){
 
 float moveAtAngleRelRobot(float heading, float speedPercent){
     /*
-     *  Sets Robot moving at an angle (0=right)
+     *  Sets Robot moving at an angle (0=right, 90=forward)
      */
     doc("RelRobot: ", heading, speedPercent);
     return setVelocityComponents(
@@ -475,8 +474,9 @@ float moveAtAngleRelRobot(float heading, float speedPercent){
 }
 float moveAtAngleRelCourse(float heading, float speedPercent){
     /*
-     *  Sets Robot moving at an angle (0=East)
+     *  Sets Robot moving at an angle (0=East, 90=North)
      */
+    updatePosition();
     doc("RelCourse: ", heading, speedPercent);
     return moveAtAngleRelRobot(principal(heading-Robot.heading), speedPercent);
 }
@@ -521,19 +521,11 @@ float pythag(float x1, float y1, float x2, float y2){
     return sqrt(pow(y2-y1,2)+pow(x2-x1,2));
 }
 float deltaAngle(float from, float to){
-    //returns the angle change from 'from' to 'to'. Between -180 and 180.
-    to = principal(to);
-    from = principal(from);
-    float rotationAngle=0;
-    if(fabs(to-from)<180){ //if no problem with 0=360
-        rotationAngle=to-from;
-    //But when there is a problem:
-    }else if(to>from){ //from Quadrant 3or4 to Quadrant 1or2
-        rotationAngle=to-from-360;
-    }else if(to<from){ //from Quadrant 1or2 to Quadrant 3or4
-        rotationAngle=to-from+360;
-    }
-    return rotationAngle;
+    //returns the angle from from to to, between -180 and +180
+    float angle = to-from;
+    while(angle>180)angle-=360;
+    while(angle<=-180)angle+=360;
+    return angle;
 }
 
 // DATA LOGGING ###############################################################
