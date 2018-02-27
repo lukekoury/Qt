@@ -86,14 +86,15 @@ int main(){
 
     //RPS Test
 
-    moveTo1(0,-6);
-    moveTo1(-6,-6);
-    moveTo1(-6,10);
-    moveTo1(6,10);
-    moveTo1(6,-6);
-    moveTo1(0,-6);
-    moveTo1(0,0);
-
+    moveTo2(0,-6);      //leave box
+    moveTo2(-12,-6);    //approach ramp
+    rotateTo(0);        //get flush with ramp
+    moveTo2(-12,18);    //go up ramp
+    moveTo2(12,18);     //move across
+    rotateTo(0);        //get flush to go down ramp
+    moveTo2(12,-6);     //move down ramp
+    moveTo2(0,-6);      //move to center
+    moveTo2(0,0);       //move back to start
 
     /////////////////////
 
@@ -117,22 +118,7 @@ void setupRun(){
     doc("Waiting for CdS.");
     startWithCds();
 }
-void calibrateRPS(){
-    /*
-     *  Make the current position the origin.
-     *  Keep checking until detected
-     */
-    doc("Step away to calibrate RPS.");
-    float h=-1;
-    while(h<0){
-        h=RPS.Heading();
-        startX=RPS.X();
-        startY=RPS.Y();
-    }
-    Buzzer.Beep();
-    doc("RPS tare:", startX, startY);
-    updatePosition();
-}
+
 void waitForTouch(){
     /*
      *  Wait until the screen is touched.
@@ -175,44 +161,7 @@ void meterMode(){
     }
 }
 
-//polymorphic function for displaying stuff on screen and logging to the SD card
-void doc(const char *text){
-    SD.Printf(FRMT, TimeNow());
-    SD.Printf(text); LCD.Write(text);
-    SD.Printf("\n"); LCD.Write('\n');
-}
-void doc(const char *text, float a){
-    SD.Printf(FRMT, TimeNow());
-    SD.Printf(text); LCD.Write(text);
-    SD.Printf(FRMT, a); LCD.Write(a);
-    SD.Printf("\n"); LCD.Write('\n');
-}
-void doc(const char *text, float a, float b){
-    SD.Printf(FRMT, TimeNow());
-    SD.Printf(text); LCD.Write(text);
-    SD.Printf(FRMT, a); LCD.Write(a);
-    SD.Printf(FRMT, b); LCD.Write(b);
-    SD.Printf("\n"); LCD.Write('\n');
-}
-void doc(const char *text, float a, float b, float c){
-    SD.Printf(FRMT, TimeNow());
-    SD.Printf(text); LCD.Write(text);
-    SD.Printf(FRMT, a); LCD.Write(a);
-    SD.Printf(FRMT, b); LCD.Write(b);
-    SD.Printf(FRMT, c); LCD.Write(c);
-    SD.Printf("\n"); LCD.Write('\n');
-}
-void doc(const char *text, float a, float b, float c, float d){
-    SD.Printf(FRMT, TimeNow());
-    SD.Printf(text); LCD.Write(text);
-    SD.Printf(FRMT, a); LCD.Write(a);
-    SD.Printf(FRMT, b); LCD.Write(b);
-    SD.Printf(FRMT, c); LCD.Write(c);
-    SD.Printf(FRMT, d); LCD.Write(d);
-    SD.Printf("\n"); LCD.Write('\n');
-}
-
-// SENSORS ###################################################################
+// CdS SENSORS ###############################################################
 
 void calibrateCds(){
     /*
@@ -288,7 +237,7 @@ int getColor(){
     return color;
 }
 
-// MOVEMENT AND NAVIGATION ###################################################
+// RPS #####################################################################
 
 bool updatePosition(){
     /*
@@ -314,6 +263,24 @@ bool updatePosition(){
     doc("Position Update Failed: ",x,y,heading);
     return false;
 }
+void calibrateRPS(){
+    /*
+     *  Make the current position the origin.
+     *  Keep checking until detected
+     */
+    doc("Step away to calibrate RPS.");
+    float h=-1;
+    while(h<0){
+        h=RPS.Heading();
+        startX=RPS.X();
+        startY=RPS.Y();
+    }
+    Buzzer.Beep();
+    doc("RPS tare:", startX, startY);
+    updatePosition();
+}
+
+// MOVEMENT ##############################################################
 
 void moveTo1(float x, float y){
     /*
@@ -324,7 +291,7 @@ void moveTo1(float x, float y){
      * 3. When close enough, just go all the way.
      */
     updatePosition();
-    float angle=arg(Robot.x, Robot.y, x, y);
+    float angle = arg(Robot.x, Robot.y, x, y);
     float distance = pythag(Robot.x,Robot.y, x, y);
     float speed = moveAtAngleRelCourse(angle, 1.0);
 
@@ -361,16 +328,33 @@ void moveTo2(float x, float y){
      * 2. check and adjust position
      */
     updatePosition();
+    doc("MovingTo ", x, y);
     float speed = moveAtAngleRelCourse(arg(Robot.x, Robot.y, x, y), 1.0);
     float distance = pythag(Robot.x, Robot.y, x, y);
     float endTime = TimeNow()+(distance)/speed;
     while(TimeNow()<endTime);
     if(updatePosition()){
+        doc("Adjusting Position.");
         moveBlindTo(x,y,.3);
     } else {
         Robot.x = x;
         Robot.y = y;
     }
+}
+
+void pushAgainst(float heading, float speedPercent, float time){
+    /*
+     * Blindly turn on the motors to push in a particular direction.
+     * Used to push against buttons.
+     * Benefit:     Unlike moveBlind or moveComponents, this will
+     *              not blindly increment position values.
+     */
+    float speed = moveAtAngleRelCourse(heading,speedPercent);
+    float stopTime=TimeNow()+time;
+    while(TimeNow()<stopTime);
+
+    updatePosition(); //if this fails, assume we didn't move.
+
 }
 
 void rotateTo(float heading){
@@ -550,4 +534,42 @@ float deltaAngle(float from, float to){
         rotationAngle=to-from+360;
     }
     return rotationAngle;
+}
+
+// DATA LOGGING ###############################################################
+// functions for displaying stuff on screen and logging to the SD card:
+void doc(const char *text){
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text); LCD.Write(" ");
+    SD.Printf("\n"); LCD.Write('\n');
+}
+void doc(const char *text, float a){
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text); LCD.Write(" ");
+    SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
+    SD.Printf("\n"); LCD.Write('\n');
+}
+void doc(const char *text, float a, float b){
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text); LCD.Write(" ");
+    SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
+    SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
+    SD.Printf("\n"); LCD.Write('\n');
+}
+void doc(const char *text, float a, float b, float c){
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text); LCD.Write(" ");
+    SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
+    SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
+    SD.Printf(FRMT, c); LCD.Write(c); LCD.Write(" ");
+    SD.Printf("\n"); LCD.Write('\n'); LCD.Write(" ");
+}
+void doc(const char *text, float a, float b, float c, float d){
+    SD.Printf(FRMT, TimeNow());
+    SD.Printf(text); LCD.Write(text); LCD.Write(" ");
+    SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
+    SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
+    SD.Printf(FRMT, c); LCD.Write(c); LCD.Write(" ");
+    SD.Printf(FRMT, d); LCD.Write(d); LCD.Write(" ");
+    SD.Printf("\n"); LCD.Write('\n');
 }
