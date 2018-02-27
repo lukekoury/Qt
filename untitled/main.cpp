@@ -110,8 +110,8 @@ void setupRun(){
     RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
-    calibrateRPS();
     calibrateCds();
+    calibrateRPS();
     doc("Touch to dominate.");
     waitForTouch();
     doc("Waiting for CdS.");
@@ -120,9 +120,17 @@ void setupRun(){
 void calibrateRPS(){
     /*
      *  Make the current position the origin.
+     *  Keep checking until detected
      */
-    startX=RPS.X();
-    startY=RPS.Y();
+    doc("Step away to calibrate RPS.");
+    float h=-1;
+    while(h<0){
+        h=RPS.Heading();
+        startX=RPS.X();
+        startY=RPS.Y();
+    }
+    Buzzer.Beep();
+    doc("RPS tare:", startX, startY);
     updatePosition();
 }
 void waitForTouch(){
@@ -486,7 +494,7 @@ float moveAtAngleRelCourse(float heading, float speedPercent){
      *  Sets Robot moving at an angle (0=East)
      */
     doc("RelCourse: ", heading, speedPercent);
-    return moveAtAngleRelRobot(heading-Robot.heading, speedPercent);
+    return moveAtAngleRelRobot(principal(heading-Robot.heading), speedPercent);
 }
 void setRotation(float direction){
     /*
