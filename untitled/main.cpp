@@ -86,15 +86,17 @@ int main(){
 
     //RPS Test
 
-    moveTo2(0,-6);      //leave box
-    moveTo2(-12,-6);    //approach ramp
-    rotateTo(0);        //get flush with ramp
-    moveTo2(-12,18);    //go up ramp
-    moveTo2(12,18);     //move across
-    rotateTo(0);        //get flush to go down ramp
-    moveTo2(12,-6);     //move down ramp
-    moveTo2(0,-6);      //move to center
-    moveTo2(0,0);       //move back to start
+//    moveTo1(0,-5);      //leave box
+//    moveTo1(-10,-4);    //approach ramp
+    rotateTo(0);              //get flush with ramp
+    return 0;
+
+    moveTo2(-10,18);    //go up ramp
+    moveTo2(10,18);     //move across
+    rotateTo(0);              //get flush to go down ramp
+    moveTo2(10,-4);     //move down ramp
+    moveTo2(0,-4);      //move to center
+    moveTo2(0,0);      //move back to start
 
     /////////////////////
 
@@ -242,6 +244,8 @@ bool updatePosition(){
     /*
      *  Reads the RPS data into the 'Robot' global variable
      *  This is the only place we need to worry about how RPS works.
+     *  True = we have correct position
+     *  False = we do not have correct position.
      */
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
@@ -249,7 +253,7 @@ bool updatePosition(){
     if(heading>-1){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
-            return false;
+            return true;
         } else {
             Robot.x = x;
             Robot.y = y;
@@ -292,11 +296,11 @@ void moveTo1(float x, float y){
     updatePosition();
     float angle = arg(Robot.x, Robot.y, x, y);
     float distance = pythag(Robot.x,Robot.y, x, y);
-    float speed = moveAtAngleRelCourse(angle, 1.0);
+    float speed = moveAtAngleRelCourse(angle, .4);
 
     //Go halfway
-    float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
     doc("movingTo1", x, y);
+    float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
     while(TimeNow()<halfTime);
     if(!updatePosition){//in case RPS fails
         Robot.x += speed*distance*0.5*cos(PI_180*angle);
@@ -306,8 +310,8 @@ void moveTo1(float x, float y){
 
     //Go the rest of the way
     distance = pythag(Robot.x, Robot.y, x, y);
-    if(distance < 3/*ADJUST*/){
-        moveBlindTo(x,y,.3);/*ADJUST*/
+    if(distance < 5/*ADJUST*/){
+        moveBlindTo(x,y,.4);/*ADJUST*/
         halt();
         if(!updatePosition()){//in case RPS fails
             Robot.x = x;
@@ -326,14 +330,14 @@ void moveTo2(float x, float y){
      * 2. check and adjust position
      */
     updatePosition();
-    doc("MovingTo ", x, y);
-    float speed = moveAtAngleRelCourse(arg(Robot.x, Robot.y, x, y), 1.0);
+    doc("MovingTo fr/to", Robot.x, Robot.y, x, y);
+    float speed = moveAtAngleRelCourse(arg(Robot.x, Robot.y, x, y), .4);
     float distance = pythag(Robot.x, Robot.y, x, y);
     float endTime = TimeNow()+(distance)/speed;
     while(TimeNow()<endTime);
     if(updatePosition()){
         doc("Adjusting Position.");
-        moveBlindTo(x,y,.3);
+        moveBlindTo(x,y,.4);
     } else {
         Robot.x = x;
         Robot.y = y;
@@ -361,18 +365,8 @@ void rotateTo(float heading){
     float rotationAngle=deltaAngle(Robot.heading, heading);
     doc("Rot from/to/by:", Robot.heading, heading, rotationAngle);
 
-    float angleSpeed=1;
-    //slow if small angle
-    if(fabs(rotationAngle)<90) angleSpeed=fabs(rotationAngle/90);
-    rotateBy(rotationAngle, angleSpeed); //do it
-
-    //Check and adjust until within 5 degrees
-    if(updatePosition()){ //if RPS available, check and re-rotate
-        float newAngle = principal(heading-Robot.heading);
-        if( fabs(deltaAngle(Robot.heading, heading))>5 /*ADJUST*/){
-            rotateTo(heading); //recursion is always good and cool. /s
-        }
-    } else {
+    float angleSpeed=.4;
+    if(!updatePosition()){
         //assume we're correct
         Robot.heading=heading;
     }
@@ -494,9 +488,10 @@ void rotateBy(float angle, float speedPercent){
     /*
      *  Rotates robot by given angle and %speed.
      */
-    doc("Rotating by:", angle);
+    doc("Rotating by:", angle, speedPercent);
     setRotation(speedPercent*(angle>0? 1:-1));
-    float timeEnd=TimeNow()+angle/(speedPercent*ROTATIONCONSTANT);
+
+    float timeEnd=TimeNow()+fabs(angle)/(speedPercent*ROTATIONCONSTANT);
     while(TimeNow()<timeEnd);
     halt();
     if(!updatePosition) Robot.heading=principal(Robot.heading+angle);
