@@ -1,0 +1,193 @@
+#include <FEHLCD.h>
+#include <FEHIO.h>
+#include <FEHUtility.h>
+#include <FEHMotor.h>
+#include <FEHRPS.h>
+
+//Declarations for encoders & motors
+DigitalEncoder right_encoder(FEHIO::P0_1);
+DigitalEncoder left_encoder(FEHIO::P0_0);
+FEHMotor right_motor(FEHMotor::Motor1, 9.0);
+FEHMotor left_motor(FEHMotor::Motor0, 9.0);
+
+void move_forward(int percent, int counts) //using encoders
+{
+    //Reset encoder counts
+    right_encoder.ResetCounts();
+    left_encoder.ResetCounts();
+
+    //Set both motors to desired percent
+    right_motor.SetPercent(percent);
+    left_motor.SetPercent(percent);
+
+    //While the average of the left and right encoder are less than counts,
+    //keep running motors
+    while((left_encoder.Counts() + right_encoder.Counts()) / 2. < counts);
+
+    //Turn off motors
+    right_motor.Stop();
+    left_motor.Stop();
+}
+
+void turn_right(int percent, int counts) //using encoders
+{
+    //Reset encoder counts
+    right_encoder.ResetCounts();
+    left_encoder.ResetCounts();
+
+    //Set both motors to desired percent
+    right_motor.SetPercent(-percent);
+    left_motor.SetPercent(percent);
+
+    //While the average of the left and right encoder are less than counts,
+    //keep running motors
+    while((left_encoder.Counts() + right_encoder.Counts()) / 2. < counts);
+
+    //Turn off motors
+    right_motor.Stop();
+    left_motor.Stop();
+}
+
+void turn_left(int percent, int counts) //using encoders
+{
+    //Reset encoder counts
+    right_encoder.ResetCounts();
+    left_encoder.ResetCounts();
+
+    //Set both motors to desired percent
+    right_motor.SetPercent(percent);
+    left_motor.SetPercent(-percent);
+
+    //While the average of the left and right encoder are less than counts,
+    //keep running motors
+    while((left_encoder.Counts() + right_encoder.Counts()) / 2. < counts);
+
+    //Turn off motors
+    right_motor.Stop();
+    left_motor.Stop();
+}
+
+void check_x_plus(float x_coordinate) //using RPS while robot is in the +x direction
+{
+    //check whether the robot is within an acceptable range
+    while(RPS.X() < x_coordinate - 1 || RPS.X() > x_coordinate + 1)
+    {
+        if(RPS.X() > x_coordinate)
+        {
+            //pulse the motors for a short duration in the correct direction
+
+            move_forward(20,20);
+            Sleep(100);
+        }
+        else if(RPS.X() < x_coordinate)
+        {
+            //pulse the motors for a short duration in the correct direction
+
+            move_forward(-20,20);
+            Sleep(100);
+        }
+    }
+}
+
+void check_y_minus(float y_coordinate) //using RPS while robot is in the -y direction
+{
+    //check whether the robot is within an acceptable range
+    while(RPS.Y() < y_coordinate - 1 || RPS.Y() > y_coordinate + 1)
+    {
+        if(RPS.Y() > y_coordinate)
+        {
+            //pulse the motors for a short duration in the correct direction
+
+            move_forward(20,20);
+            Sleep(100);
+        }
+        else if(RPS.Y() < y_coordinate)
+        {
+            //pulse the motors for a short duration in the correct direction
+
+            move_forward(-20,20);
+            Sleep(100);
+        }
+    }
+}
+
+void check_y_plus(float y_coordinate) //using RPS while robot is in the +y direction
+{
+    //check whether the robot is within an acceptable range
+    while(RPS.Y() < y_coordinate - 1 || RPS.Y() > y_coordinate + 1)
+    {
+        if(RPS.Y() > y_coordinate)
+        {
+            //pulse the motors for a short duration in the correct direction
+
+            move_forward(-20,20);
+            Sleep(100);
+        }
+        else if(RPS.Y() < y_coordinate)
+        {
+            //pulse the motors for a short duration in the correct direction
+
+            move_forward(20,20);
+            Sleep(100);
+        }
+    }
+}
+
+void check_heading(float heading) //using RPS
+{
+    if(heading>300){
+        heading=heading-360;
+    }
+    while(RPS.Heading()<heading-5||RPS.Heading()>heading+5)
+    {
+        if(RPS.Heading()>heading)
+        {
+            turn_right(20,10);
+            Sleep(100);
+        }
+        else if(RPS.Heading()<heading){
+            turn_left(20,10);
+            Sleep(100);
+        }
+    }
+}
+
+int main(void)
+{
+    float touch_x,touch_y;
+
+    RPS.InitializeTouchMenu();
+
+    LCD.WriteLine("RPS & Data Logging Test");
+    LCD.WriteLine("Press Screen To Start");
+    while(!LCD.Touch(&touch_x,&touch_y)); //Wait for touchscreen press
+
+    float x_coordinate = RPS.X();
+    float y_coordinate = RPS.Y();
+    float heading=RPS.Heading();
+
+    move_forward(20,405);
+    y_coordinate-=10;
+    check_y_minus(y_coordinate);
+
+    turn_left(20,223);
+    heading+=90;
+    check_heading(heading);
+
+    x_coordinate=RPS.X();
+    move_forward(20,486);
+    x_coordinate+=12;
+    check_x_plus(x_coordinate);
+
+    heading=RPS.Heading();
+    turn_left(20,223);
+    heading+=90;
+    check_heading(heading);
+
+    y_coordinate=RPS.Y();
+    move_forward(20,121);
+    y_coordinate+=3;
+    check_y_plus(y_coordinate);
+
+    return 0;
+}
