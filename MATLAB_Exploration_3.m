@@ -28,11 +28,13 @@ Path = csvread('LOG077.TXT');
 
 %ADD CODE TO FILTER -1's AND -2's AND PLOT HERE
 t=1;
-while(t<length(Path))
+while(t<=length(Path))
     if (Path(t,1)<0)
         Path(t,:)=[];
     else
+        plot(Path(t,2),Path(t,1),'ro');
         t=t+1;
+        
     end
 end
-    plot(Path);
+plot(Path(1:end,2),Path(1:end,1),'r-');
