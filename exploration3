@@ -72,19 +72,25 @@ void check_x_plus(float x_coordinate) //using RPS while robot is in the +x direc
     //check whether the robot is within an acceptable range
     while(RPS.X() < x_coordinate - 1 || RPS.X() > x_coordinate + 1)
     {
+        LCD.Clear();
+        LCD.Write("Current x coordinate: ");
+        LCD.WriteLine(RPS.X());
+        LCD.Write("Going to : ");
+        LCD.WriteLine(x_coordinate);
+                
         if(RPS.X() > x_coordinate)
         {
             //pulse the motors for a short duration in the correct direction
 
-            move_forward(20,20);
-            Sleep(100);
+            move_forward(-20,20);
+            Sleep(250);
         }
         else if(RPS.X() < x_coordinate)
         {
             //pulse the motors for a short duration in the correct direction
 
-            move_forward(-20,20);
-            Sleep(100);
+            move_forward(20,20);
+            Sleep(250);
         }
     }
 }
@@ -94,19 +100,25 @@ void check_y_minus(float y_coordinate) //using RPS while robot is in the -y dire
     //check whether the robot is within an acceptable range
     while(RPS.Y() < y_coordinate - 1 || RPS.Y() > y_coordinate + 1)
     {
+        LCD.Clear();
+        LCD.Write("Current y coordinate: ");
+        LCD.WriteLine(RPS.Y());
+        LCD.Write("Going to : ");
+        LCD.WriteLine(y_coordinate);
+        
         if(RPS.Y() > y_coordinate)
         {
             //pulse the motors for a short duration in the correct direction
 
             move_forward(20,20);
-            Sleep(100);
+            Sleep(250);
         }
         else if(RPS.Y() < y_coordinate)
         {
             //pulse the motors for a short duration in the correct direction
 
             move_forward(-20,20);
-            Sleep(100);
+            Sleep(250);
         }
     }
 }
@@ -116,19 +128,25 @@ void check_y_plus(float y_coordinate) //using RPS while robot is in the +y direc
     //check whether the robot is within an acceptable range
     while(RPS.Y() < y_coordinate - 1 || RPS.Y() > y_coordinate + 1)
     {
+        LCD.Clear();
+        LCD.Write("Current y coordinate: ");
+        LCD.WriteLine(RPS.Y());
+        LCD.Write("Going to : ");
+        LCD.WriteLine(y_coordinate);
+        
         if(RPS.Y() > y_coordinate)
         {
             //pulse the motors for a short duration in the correct direction
 
             move_forward(-20,20);
-            Sleep(100);
+            Sleep(250);
         }
         else if(RPS.Y() < y_coordinate)
         {
             //pulse the motors for a short duration in the correct direction
 
             move_forward(20,20);
-            Sleep(100);
+            Sleep(250);
         }
     }
 }
@@ -138,16 +156,21 @@ void check_heading(float heading) //using RPS
     if(heading>300){
         heading=heading-360;
     }
+    LCD.Clear();
+    LCD.Write("Current heading ");
+    LCD.WriteLine(RPS.Heading());
+    LCD.Write("Going to : ");
+    LCD.WriteLine(heading);
     while(RPS.Heading()<heading-5||RPS.Heading()>heading+5)
     {
         if(RPS.Heading()>heading)
         {
             turn_right(20,10);
-            Sleep(100);
+            Sleep(250);
         }
         else if(RPS.Heading()<heading){
             turn_left(20,10);
-            Sleep(100);
+            Sleep(250);
         }
     }
 }
