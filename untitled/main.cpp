@@ -17,6 +17,9 @@
 #define OFF 0
 #define REDLIGHT 1
 #define BLUELIGHT 2
+#define NEWRPS 1
+#define NORPS 0
+#define OLDRPS 2
 
 using namespace std;
 
@@ -54,7 +57,7 @@ void calibrateRPS();
 int getColor();
 void meterMode();
 void waitForTouch();
-bool updatePosition();
+int updatePosition();
 
 void setWheels(float fl, float fr, float bl, float br);
 void halt();
@@ -72,8 +75,6 @@ float deltaAngle(float from, float to);
 void moveBlind(float angle, float distance, float speedPercent);
 void moveBlindTo(float x, float y, float speedPercent);
 void moveComponents(float x, float y, float speedPercent);
-void moveTo1(float x, float y);
-void moveTo2(float x, float y);
 void rotateBy(float angle, float speedPercent);
 void rotateTo(float heading, float precision);
 void moveTo(float x, float y, float precision);
@@ -238,7 +239,7 @@ int getColor(){
 
 // RPS #####################################################################
 
-bool updatePosition(){
+int updatePosition(){
     /*
      *  Reads the RPS data into the 'Robot' global variable
      *  This is the only place we need to worry about how RPS works.
@@ -251,18 +252,18 @@ bool updatePosition(){
     if(heading>-1){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
-            return true;
+            return OLDRPS;
         } else {
             Robot.x = x;
             Robot.y = y;
             Robot.heading = heading;
             Robot.timestamp=TimeNow();
             doc("Position: ", x,y,heading, Robot.timestamp);
-            return true;
+            return NEWRPS;
         }
     }
     doc("Position Update Failed: ",x,y,heading);
-    return false;
+    return NORPS;
 }
 void calibrateRPS(){
     /*
@@ -283,66 +284,6 @@ void calibrateRPS(){
 
 // MOVEMENT ##############################################################
 
-void moveTo1(float x, float y){
-    /*
-     * MOTION ALGOTITHM 1
-     * Moves robot to definite position (x,y):
-     * 1. go halfway
-     * 2. adjust course and repeat 1
-     * 3. When close enough, just go all the way.
-     */
-    updatePosition();
-    float angle = arg(Robot.x, Robot.y, x, y);
-    float distance = pythag(Robot.x,Robot.y, x, y);
-    float speed = moveAtAngleRelCourse(angle, .4);
-
-    //Go halfway
-    doc("movingTo1", x, y);
-    float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
-    while(TimeNow()<halfTime);
-    halt();
-    Sleep(.5);
-    if(!updatePosition){//in case RPS fails
-        Robot.x += speed*distance*0.5*cos(PI_180*angle);
-        Robot.y += speed*distance*0.5*sin(PI_180*angle);
-        doc("CalcHalfPos", Robot.x, Robot.y);
-    }
-
-    //Go the rest of the way
-    distance = pythag(Robot.x, Robot.y, x, y);
-    if(distance < 5/*ADJUST*/){
-        moveBlindTo(x,y,.4);/*ADJUST*/
-        halt();
-        if(!updatePosition()){//in case RPS fails
-            Robot.x = x;
-            Robot.y = y;
-            doc("CalcPos", Robot.x, Robot.y);
-        }
-    } else {
-        moveTo1(x,y);
-    }
-}
-void moveTo2(float x, float y){
-    /*
-     * MOTION ALGOTITHM 2
-     * Moves robot to definite position (x,y):
-     * 1. go all the way
-     * 2. check and adjust position
-     */
-    updatePosition();
-    doc("MovingTo fr/to", Robot.x, Robot.y, x, y);
-    float speed = moveAtAngleRelCourse(arg(Robot.x, Robot.y, x, y), .4);
-    float distance = pythag(Robot.x, Robot.y, x, y);
-    float endTime = TimeNow()+(distance)/speed;
-    while(TimeNow()<endTime);
-    if(updatePosition()){
-        doc("Adjusting Position.");
-        moveBlindTo(x,y,.4);
-    } else {
-        Robot.x = x;
-        Robot.y = y;
-    }
-}
 void moveTo(float x, float y, float precision){
     /*
      *  Rotates the robot to face the specified heading.
@@ -353,7 +294,7 @@ void moveTo(float x, float y, float precision){
     moveBlindTo(x,y,speedPercent);
     Sleep(.8);
 
-    if(!updatePosition()){
+    if(updatePosition()==NORPS){
         //assume we're correct
         Robot.x=x;
         Robot.y=y;
@@ -363,6 +304,41 @@ void moveTo(float x, float y, float precision){
     }
 
 }
+
+void moveToFast(float x, float y, float precision){
+    /*
+     * Updates position while moving.
+     */
+    updatePosition();
+    while(pythag(Robot.x,Robot.y, x, y)>precision){
+        float distance = pythag(Robot.x,Robot.y, x, y);
+        float angle = arg(Robot.x,Robot.y, x, y);
+        float speed = moveAtAngleRelCourse(arg,(distance>6? 1.0, 0.4));
+        float endTime=TimeNow()+0.5*distance/speed; /*ADJUST*/
+        bool updated=false;
+        while(TimeNow()<endTime){
+            if(updatePosition()==NEWRPS) updated=true;
+        }
+        if(updated){
+            //change in position since last new update
+            float d=speed*(TimeNow()-Robot.timestamp+.25/*ADJUST*/);
+            Robot.x+=d*cos(PI_180*angle);
+            Robot.y+=d*sin(PI_180*angle);
+        } else {
+            Robot.x=x;
+            Robot.y=y;
+        }
+        if( pythag(Robot.x,Robot.y, x, y)<precision){
+            halt();
+            if(TimeNow()-Robot.timestamp>1.0/*Adjust*/){
+                Sleep(0.8);
+                updatePosition();
+            }
+        }
+
+    }
+}
+
 void pushAgainst(float heading, float speedPercent, float time){
     /*
      * Blindly turn on the motors to push in a particular direction.
