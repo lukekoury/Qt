@@ -339,7 +339,7 @@ void moveToFast(float x, float y, float precision){
     }
 }
 
-void pushAgainst(float heading, float speedPercent, float time){
+void pushAgainst(float heading, float speedPercent, float duration){
     /*
      * Blindly turn on the motors to push in a particular direction.
      * Used to push against buttons.
@@ -347,7 +347,7 @@ void pushAgainst(float heading, float speedPercent, float time){
      *              not blindly increment position values.
      */
     float speed = moveAtAngleRelCourse(heading,speedPercent);
-    float stopTime=TimeNow()+time;
+    float stopTime=TimeNow()+duration;
     while(TimeNow()<stopTime);
 
     updatePosition(); //if this fails, assume we didn't move.
