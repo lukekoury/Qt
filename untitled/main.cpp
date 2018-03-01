@@ -12,7 +12,7 @@
 
 #define PI_180 0.0174532925
 #define SPEEDCONSTANT 13.9 //inches per second
-#define ROTATIONCONSTANT 186.7 //degrees per second
+#define ROTATIONCONSTANT 180 //degrees per second
 #define FRMT "%.2f "
 #define OFF 0
 #define REDLIGHT 1
@@ -75,7 +75,8 @@ void moveComponents(float x, float y, float speedPercent);
 void moveTo1(float x, float y);
 void moveTo2(float x, float y);
 void rotateBy(float angle, float speedPercent);
-void rotateTo(float heading);
+void rotateTo(float heading, float precision);
+void moveTo(float x, float y, float precision);
 
 // OVERALL PROCEDURE ##########################################################
 
@@ -84,24 +85,21 @@ int main(){
 
     /////////////////////
 
-    //RPS Test
-
-//    moveTo1(0,-5);      //leave box
-//    moveTo1(-10,-4);    //approach ramp
-    rotateTo(0);              //get flush with ramp
-    return 0;
-
-    moveTo2(-10,18);    //go up ramp
-    moveTo2(10,18);     //move across
-    rotateTo(0);              //get flush to go down ramp
-    moveTo2(10,-4);     //move down ramp
-    moveTo2(0,-4);      //move to center
-    moveTo2(0,0);      //move back to start
+    moveTo(0,-5,.5);
+    moveTo(-10,-5,.5);
+    rotateTo(0,2);              //get flush to go down ramp
+    moveTo(-10,18,2);    //go up ramp
+    moveTo(10,18,2);     //move across
+    rotateTo(0,5);              //get flush to go down ramp
+    moveTo(10,-4,.5);     //move down ramp
+    moveTo(0,-4,.5);      //move to center
+    moveTo(0,0,.5);      //move back to start
 
     /////////////////////
 
     doc("Program finished.");
     SD.CloseLog();
+    return 0;
 }
 
 // STARTUP AND BOOKKEEPING ####################################################
@@ -302,6 +300,8 @@ void moveTo1(float x, float y){
     doc("movingTo1", x, y);
     float halfTime = TimeNow()+(distance*0.5/*ADJUST*/)/speed;
     while(TimeNow()<halfTime);
+    halt();
+    Sleep(.5);
     if(!updatePosition){//in case RPS fails
         Robot.x += speed*distance*0.5*cos(PI_180*angle);
         Robot.y += speed*distance*0.5*sin(PI_180*angle);
@@ -343,6 +343,26 @@ void moveTo2(float x, float y){
         Robot.y = y;
     }
 }
+void moveTo(float x, float y, float precision){
+    /*
+     *  Rotates the robot to face the specified heading.
+     */
+    updatePosition();
+    float speedPercent=1.0;
+    if(pythag(Robot.x,Robot.y, x, y)<6) speedPercent=.4;
+    moveBlindTo(x,y,speedPercent);
+    Sleep(.8);
+
+    if(!updatePosition()){
+        //assume we're correct
+        Robot.x=x;
+        Robot.y=y;
+    }
+    if(pythag(Robot.x,Robot.y, x, y)>precision){
+        moveTo(x, y, precision);
+    }
+
+}
 void pushAgainst(float heading, float speedPercent, float time){
     /*
      * Blindly turn on the motors to push in a particular direction.
@@ -357,7 +377,7 @@ void pushAgainst(float heading, float speedPercent, float time){
     updatePosition(); //if this fails, assume we didn't move.
 
 }
-void rotateTo(float heading){
+void rotateTo(float heading, float precision){
     /*
      *  Rotates the robot to face the specified heading.
      */
@@ -365,10 +385,16 @@ void rotateTo(float heading){
     float rotationAngle=deltaAngle(Robot.heading, heading);
     doc("Rot from/to/by:", Robot.heading, heading, rotationAngle);
 
-    float angleSpeed=.4;
+    float angleSpeed=.6;
+    if(fabs(rotationAngle)<90) angleSpeed=.4;
+    rotateBy(rotationAngle, angleSpeed);
+    Sleep(.8);
     if(!updatePosition()){
         //assume we're correct
         Robot.heading=heading;
+    }
+    if(fabs(deltaAngle(heading, Robot.heading))>precision){
+        rotateTo(heading, precision);
     }
 
 }
