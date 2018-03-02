@@ -58,6 +58,7 @@ int getColor();
 void meterMode();
 void waitForTouch();
 int updatePosition();
+void motorTest();
 
 void raiseForkLift();
 void lowerForkLift();
@@ -69,6 +70,7 @@ float setVelocityComponents(float right, float forward, float speedPercent);
 float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
 void setRotation(float direction);
+void pushAgainst(float heading, float speedPercent, float duration);
 
 float principal(float x);
 float arg(float x1,float y1,float x2,float y2);
@@ -99,7 +101,7 @@ int main(){
         moveTo(8.75,-8.5,.5);
         color=getColor();
     }
-    while(!IsDeadZoneActive()){
+    while(!RPS.IsDeadzoneActive()){
         switch(color){
             //Pusher centered 0.5 inches to the left of robot
             case REDLIGHT:
@@ -125,7 +127,7 @@ int main(){
     moveTo(-8.7, 35.5, 1); //up to garage
     lowerForkLift();
     moveComponents(3,-3,1); // out of garage
-    raiseForkLift();
+    forkLift.SetDegree(90);
 
     moveTo(8.4,35.2,1); //move to crank
     pushAgainst(45,0.3,0.5); //smack dat crank
@@ -155,7 +157,11 @@ void setupRun(){
     /*
      *  Subroutine for starting up a run.
      */
+
     forkLift.SetMin(690); forkLift.SetMax(2250);
+    LCD.WriteLine("Tap To test motors."); waitForTouch();
+    motorTest();
+
     RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
@@ -166,6 +172,15 @@ void setupRun(){
     waitForTouch();
     doc("Waiting for CdS.");
     startWithCds();
+}
+void motorTest(){
+    forkLift.SetDegree(180);
+    setWheels(1,0,0,0); Sleep(250);
+    setWheels(0,1,0,0); Sleep(250);
+    forkLift.SetDegree(90);
+    setWheels(0,0,1,0); Sleep(250);
+    setWheels(0,0,0,1); Sleep(250);
+    halt();
 }
 void waitForTouch(){
     /*
