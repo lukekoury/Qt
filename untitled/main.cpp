@@ -59,6 +59,9 @@ void meterMode();
 void waitForTouch();
 int updatePosition();
 
+void raiseForkLift();
+void lowerForkLift();
+
 void setWheels(float fl, float fr, float bl, float br);
 void halt();
 
@@ -84,19 +87,62 @@ void moveTo(float x, float y, float precision);
 int main(){
     setupRun();
 
-    /////////////////////
 
-    moveTo(0,-5,.5);
-    moveTo(-10,-5,.5);
-    rotateTo(0,2);              //get flush to go down ramp
-    moveTo(-10,18,2);    //go up ramp
-    moveTo(10,18,2);     //move across
-    rotateTo(0,5);              //get flush to go down ramp
-    moveTo(10,-4,.5);     //move down ramp
-    moveTo(0,-4,.5);      //move to center
-    moveTo(0,0,.5);      //move back to start
 
-    /////////////////////
+    /////////////////////////////////
+
+
+
+    moveComponents(0,-5,1);
+    int color = OFF;
+    while(color==OFF){
+        moveTo(8.75,-8.5,.5);
+        color=getColor();
+    }
+    while(!IsDeadZoneActive()){
+        switch(color){
+            //Pusher centered 0.5 inches to the left of robot
+            case REDLIGHT:
+                moveTo(7.75,-11,.5);
+            break;
+            case BLUELIGHT:
+                moveTo(10.75,-11,.5);
+            break;
+        }
+        pushAgainst(270,.4,1);
+        pushAgainst(270,.2,5);
+        moveComponents(0,1,1);
+
+    }
+    moveTo(-8.5,-12,0.5); //Move over to wrench
+    lowerForkLift();
+    rotateTo(0,2); //line up with wrench
+    moveTo(-12,-12,0.5); // insert into wrench
+    raiseForkLift();
+
+    moveTo(-12,18,2); // up ramp
+    rotateTo(-45,8);
+    moveTo(-8.7, 35.5, 1); //up to garage
+    lowerForkLift();
+    moveComponents(3,-3,1); // out of garage
+    raiseForkLift();
+
+    moveTo(8.4,35.2,1); //move to crank
+    pushAgainst(45,0.3,0.5); //smack dat crank
+
+    moveTo(5.5,21,2);   //avoid tires
+    rotateTo(0,2);      //get level
+
+    moveTo(12,14,1);    //approach ramp
+    moveTo(12,-5,1);    //descend ramp
+    moveTo(0,-5,1);     //get to center
+    moveTo(0,9,1);      //smack the button
+
+
+
+    /////////////////////////////////
+
+
 
     doc("Program finished.");
     SD.CloseLog();
@@ -109,11 +155,13 @@ void setupRun(){
     /*
      *  Subroutine for starting up a run.
      */
+    forkLift.SetMin(690); forkLift.SetMax(2250);
     RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
     calibrateCds();
     calibrateRPS();
+    raiseForkLift();
     doc("Touch to dominate.");
     waitForTouch();
     doc("Waiting for CdS.");
@@ -237,6 +285,19 @@ int getColor(){
     return color;
 }
 
+// ACTIONS #################################################################
+
+void raiseForkLift(){
+    for(int i=180; i>95; i--){
+        forkLift.SetDegree(i);
+        Sleep(12);
+    }
+}
+
+void lowerForkLift(){
+    forkLift.SetDegree(180);
+}
+
 // RPS #####################################################################
 
 int updatePosition(){
@@ -313,7 +374,7 @@ void moveToFast(float x, float y, float precision){
     while(pythag(Robot.x,Robot.y, x, y)>precision){
         float distance = pythag(Robot.x,Robot.y, x, y);
         float angle = arg(Robot.x,Robot.y, x, y);
-        float speed = moveAtAngleRelCourse(arg,(distance>6? 1.0, 0.4));
+        float speed = moveAtAngleRelCourse(angle,(distance>6? 1.0:0.4));
         float endTime=TimeNow()+0.5*distance/speed; /*ADJUST*/
         bool updated=false;
         while(TimeNow()<endTime){
@@ -321,6 +382,7 @@ void moveToFast(float x, float y, float precision){
         }
         if(updated){
             //change in position since last new update
+            //consistently overshooting => assume more delay.
             float d=speed*(TimeNow()-Robot.timestamp+.25/*ADJUST*/);
             Robot.x+=d*cos(PI_180*angle);
             Robot.y+=d*sin(PI_180*angle);
