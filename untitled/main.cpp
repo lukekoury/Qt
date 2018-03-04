@@ -91,40 +91,42 @@ int main(){
 
 
 
+
     /////////////////////////////////
 
-
-
-    moveComponents(0,-5,1);
+    moveComponents(0,-2,1);
+    Sleep(0.8);
     int color = OFF;
     while(color==OFF){
-        moveTo(8.75,-8.5,.5);
+        moveTo(8.75,-8.25,1);
         color=getColor();
     }
-    while(!RPS.IsDeadzoneActive()){
+//    while(RPS.IsDeadzoneActive()){
         switch(color){
-            //Pusher centered 0.5 inches to the left of robot
+            //Pusher centered 0.5 inches to the left of robot center
             case REDLIGHT:
-                moveTo(7.75,-11,.5);
+            LCD.Clear(RED);
+//                moveTo(7.75,-8.25,.5);
             break;
             case BLUELIGHT:
-                moveTo(10.75,-11,.5);
+            LCD.Clear(BLUE);
+//                moveTo(10.75,-8.25,.5);
             break;
         }
-        pushAgainst(270,.4,1);
-        pushAgainst(270,.2,5);
-        moveComponents(0,1,1);
+        pushAgainst(270,.4,8);
+        moveComponents(0,2,1);
 
-    }
-    moveTo(-8.5,-12,0.5); //Move over to wrench
+//    }
+    moveTo(-6.2,-11.3,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
-    moveTo(-12,-12,0.5); // insert into wrench
+    moveTo(-8.7,-11.3,0.5); // insert into wrench
     raiseForkLift();
 
     moveTo(-12,18,2); // up ramp
     rotateTo(-45,8);
-    moveTo(-8.7, 35.5, 1); //up to garage
+    moveTo(0,27.5,1); //to center of top
+    moveTo(-8, 35.5, 1); //up to garage
     lowerForkLift();
     moveComponents(3,-3,1); // out of garage
     forkLift.SetDegree(90);
@@ -132,10 +134,10 @@ int main(){
     moveTo(8.4,35.2,1); //move to crank
     pushAgainst(45,0.3,0.5); //smack dat crank
 
-    moveTo(5.5,21,2);   //avoid tires
-    rotateTo(0,2);      //get level
+    moveTo(0,27.5,1); //to center of top
 
     moveTo(12,14,1);    //approach ramp
+    rotateTo(0,2);      //get level
     moveTo(12,-5,1);    //descend ramp
     moveTo(0,-5,1);     //get to center
     moveTo(0,9,1);      //smack the button
@@ -159,15 +161,12 @@ void setupRun(){
      */
 
     forkLift.SetMin(690); forkLift.SetMax(2250);
-    LCD.WriteLine("Tap To test motors."); waitForTouch();
-    motorTest();
-
+    forkLift.SetDegree(90);
     RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
     calibrateCds();
     calibrateRPS();
-    raiseForkLift();
     doc("Touch to dominate.");
     waitForTouch();
     doc("Waiting for CdS.");
@@ -197,6 +196,7 @@ void meterMode(){
     /*
      *  Turn the robot into a "meter" for debugging sensors
      */
+    RPS.InitializeTouchMenu();
     while(true){
         //CdS
         float sum=0, redsum=0;
@@ -346,16 +346,18 @@ void calibrateRPS(){
      *  Make the current position the origin.
      *  Keep checking until detected
      */
-    doc("Step away to calibrate RPS.");
-    float h=-1;
-    while(h<0){
-        h=RPS.Heading();
-        startX=RPS.X();
-        startY=RPS.Y();
-    }
-    Buzzer.Beep();
-    doc("RPS tare:", startX, startY);
-    updatePosition();
+//    doc("Step away to calibrate RPS.");
+//    float h=-1;
+//    while(h<0){
+//        h=RPS.Heading();
+//        startX=RPS.X();
+//        startY=RPS.Y();
+//    }
+//    Buzzer.Beep();
+//    doc("RPS tare:", startX, startY);
+//    updatePosition();
+    startX=17.4;
+    startY=29.3;
 }
 
 // MOVEMENT ##############################################################
@@ -365,18 +367,22 @@ void moveTo(float x, float y, float precision){
      *  Rotates the robot to face the specified heading.
      */
     updatePosition();
-    float speedPercent=1.0;
-    if(pythag(Robot.x,Robot.y, x, y)<6) speedPercent=.4;
-    moveBlindTo(x,y,speedPercent);
-    Sleep(.8);
 
-    if(updatePosition()==NORPS){
-        //assume we're correct
-        Robot.x=x;
-        Robot.y=y;
-    }
-    if(pythag(Robot.x,Robot.y, x, y)>precision){
-        moveTo(x, y, precision);
+    float distance = pythag(Robot.x,Robot.y, x, y);
+    if(distance>precision){
+        float speedPercent=.5;
+        if(distance<6) speedPercent=.3;
+        moveBlindTo(x,y,speedPercent);
+        Sleep(.8);
+
+        if(updatePosition()==NORPS){
+            //assume we're correct
+            Robot.x=x;
+            Robot.y=y;
+        }
+        if(pythag(Robot.x,Robot.y, x, y)>precision){
+            moveTo(x, y, precision);
+        }
     }
 
 }
