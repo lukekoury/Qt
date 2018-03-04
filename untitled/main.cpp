@@ -117,10 +117,10 @@ int main(){
         moveComponents(0,2,1);
 
 //    }
-    moveTo(-6.2,-11.3,0.5); //Move over to wrench
+    moveTo(-6.2,-11.8,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
-    moveTo(-8.7,-11.3,0.5); // insert into wrench
+    moveTo(-8.7,-11.8,0.5); // insert into wrench
     raiseForkLift();
 
     moveTo(-12,18,2); // up ramp
@@ -370,7 +370,7 @@ void moveTo(float x, float y, float precision){
 
     float distance = pythag(Robot.x,Robot.y, x, y);
     if(distance>precision){
-        float speedPercent=.5;
+        float speedPercent=1;
         if(distance<6) speedPercent=.3;
         moveBlindTo(x,y,speedPercent);
         Sleep(.8);
