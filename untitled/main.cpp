@@ -103,13 +103,13 @@ int main(){
     //Sleep(0.8);
     int color = OFF;
     while(color==OFF){
-        moveBlindTo(8.75,-8.25,1);
+        moveBlindTo(9,-7.75,1);
         color=getColor();
         if(color==OFF) break;
         Sleep(0.8);
         updatePosition();
     }
-//    while(!RPS.IsDeadzoneActive()){
+    do {
         switch(color){
             //Pusher centered 0.5 inches to the left of robot center
             case REDLIGHT: LCD.Clear(RED);
@@ -122,45 +122,52 @@ int main(){
         pushAgainst(270,.4,6);
         moveComponents(0,2,1);
 
-//    }
-    moveTo(-6.2,-12,0.5); //Move over to wrench
+    } while(!RPS.IsDeadzoneActive());
+
+    moveTo(-6,-12,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
+    Sleep(0.8);
     moveTo(-9,-12,0.5); // insert into wrench
     raiseForkLift();
 
-    moveBlindTo(-12,24,2); //up ramp
-    moveTo(-12,20,4); // make sure up ramp
+    //moveBlindTo(-13,24,2); //up ramp
+    moveTo(-13,15,4); // make sure up ramp
     rotateTo(-45,8); //line up to deposit wrench
     moveTo(0,27.5,1); //to center of top
-    moveTo(-8, 35.5, 1); //up to garage
+    moveTo(-7, 36, 1); //up to garage
     lowerForkLift();
     moveComponents(3,-3,1); // out of garage
     forkLift.SetDegree(90);
 
+    moveTo(0,27.5,2); //to center of top
+    rotateTo(-45,3);
 
     switch(fuelType){
         case OCTANE:
             crankyBoi.SetDegree(0);
             crankPosition=0;
-            moveTo(8.4,34,0.5); //move to crank
+            moveTo(6.90,33.79,0.5); //move to crank
+            moveTo(7.90,34.79,0.5); //move to crank
             setCrank(180);
         break;
         case NITRO:
-        crankyBoi.SetDegree(180);
-        crankPosition=180;
-        moveTo(8.4,34,0.5); //move to crank
-        setCrank(0);
+            crankyBoi.SetDegree(180);
+            crankPosition=180;
+            moveTo(6.90,33.79,0.5); //move to crank
+            moveTo(7.90,34.79,0.5); //move to crank
+            setCrank(0);
         break;
     }
+    Sleep(0.8);
 
     moveTo(0,27.5,2); //to center of top
 
     moveTo(12,14,2);    //approach ramp
-    rotateTo(0,5);      //get level
+    rotateTo(90,5);      //get level
     moveTo(12,-5,1);    //descend ramp
-    moveTo(0,-5,1);     //get to center
-    moveTo(0,9,1);      //smack the button
+    moveTo(-1,-5,1);     //get to center
+    moveTo(-.5,9,1);      //smack the button
 
 
 
@@ -336,9 +343,9 @@ void lowerForkLift(){
     forkLift.SetDegree(180);
 }
 void setCrank(float pos){
-    for(float i=crankPosition; i<=pos; i+=(pos-crankPosition)/30){
+    for(float i=crankPosition; i<=pos; i+=(pos-crankPosition)/60){
         crankyBoi.SetDegree(i);
-        Sleep(1.0/30);
+        Sleep(0.5/60);
     }
     crankyBoi.SetDegree(pos);
     crankPosition=pos;
@@ -634,20 +641,20 @@ float deltaAngle(float from, float to){
 void doc(const char *text){
     SD.Printf(FRMT, TimeNow());
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
-    SD.Printf("\n"); LCD.Write('\n');
+    SD.Printf("\r\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a){
     SD.Printf(FRMT, TimeNow());
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
-    SD.Printf("\n"); LCD.Write('\n');
+    SD.Printf("\r\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b){
     SD.Printf(FRMT, TimeNow());
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
     SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
-    SD.Printf("\n"); LCD.Write('\n');
+    SD.Printf("\r\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b, float c){
     SD.Printf(FRMT, TimeNow());
@@ -655,7 +662,7 @@ void doc(const char *text, float a, float b, float c){
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
     SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
     SD.Printf(FRMT, c); LCD.Write(c); LCD.Write(" ");
-    SD.Printf("\n"); LCD.Write('\n'); LCD.Write(" ");
+    SD.Printf("\r\n"); LCD.Write('\n'); LCD.Write(" ");
 }
 void doc(const char *text, float a, float b, float c, float d){
     SD.Printf(FRMT, TimeNow());
@@ -664,5 +671,5 @@ void doc(const char *text, float a, float b, float c, float d){
     SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
     SD.Printf(FRMT, c); LCD.Write(c); LCD.Write(" ");
     SD.Printf(FRMT, d); LCD.Write(d); LCD.Write(" ");
-    SD.Printf("\n"); LCD.Write('\n');
+    SD.Printf("\r\n"); LCD.Write('\n');
 }
