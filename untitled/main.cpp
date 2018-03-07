@@ -20,6 +20,8 @@
 #define NEWRPS 1
 #define NORPS 0
 #define OLDRPS 2
+#define OCTANE 1
+#define NITRO 2
 
 using namespace std;
 
@@ -33,13 +35,15 @@ struct POS{
 
 float cdsControl, redControl;
 float startX, startY;
+int fuelType;
+float crankPosition;
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
 FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
-AnalogInputPin cds(FEHIO::P0_1);//TODO: DECIDE PINS
+AnalogInputPin cds(FEHIO::P0_1);
 AnalogInputPin cdsRed(FEHIO::P0_0);
 FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
@@ -59,9 +63,11 @@ void meterMode();
 void waitForTouch();
 int updatePosition();
 void motorTest();
+void moveToFast(float x, float y, float precision);
 
 void raiseForkLift();
 void lowerForkLift();
+void setCrank(float pos);
 
 void setWheels(float fl, float fr, float bl, float br);
 void halt();
@@ -90,54 +96,68 @@ int main(){
     setupRun();
 
 
-
-
     /////////////////////////////////
 
-    moveComponents(0,-2,1);
-    Sleep(0.8);
+    moveBlindTo(0,-2,1);
+
+    //Sleep(0.8);
     int color = OFF;
     while(color==OFF){
-        moveTo(8.75,-8.25,1);
+        moveBlindTo(8.75,-8.25,1);
         color=getColor();
+        if(color==OFF) break;
+        Sleep(0.8);
+        updatePosition();
     }
-//    while(RPS.IsDeadzoneActive()){
+//    while(!RPS.IsDeadzoneActive()){
         switch(color){
             //Pusher centered 0.5 inches to the left of robot center
-            case REDLIGHT:
-            LCD.Clear(RED);
+            case REDLIGHT: LCD.Clear(RED);
 //                moveTo(7.75,-8.25,.5);
             break;
-            case BLUELIGHT:
-            LCD.Clear(BLUE);
+            case BLUELIGHT: LCD.Clear(BLUE);
 //                moveTo(10.75,-8.25,.5);
             break;
         }
-        pushAgainst(270,.4,8);
+        pushAgainst(270,.4,6);
         moveComponents(0,2,1);
 
 //    }
-    moveTo(-6.2,-11.8,0.5); //Move over to wrench
+    moveTo(-6.2,-12,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
-    moveTo(-8.7,-11.8,0.5); // insert into wrench
+    moveTo(-9,-12,0.5); // insert into wrench
     raiseForkLift();
 
-    moveTo(-12,18,2); // up ramp
-    rotateTo(-45,8);
+    moveBlindTo(-12,24,2); //up ramp
+    moveTo(-12,20,4); // make sure up ramp
+    rotateTo(-45,8); //line up to deposit wrench
     moveTo(0,27.5,1); //to center of top
     moveTo(-8, 35.5, 1); //up to garage
     lowerForkLift();
     moveComponents(3,-3,1); // out of garage
     forkLift.SetDegree(90);
 
-    moveTo(8.4,35.2,1); //move to crank
-    pushAgainst(45,0.3,0.5); //smack dat crank
 
-    moveTo(0,27.5,1); //to center of top
+    switch(fuelType){
+        case OCTANE:
+            crankyBoi.SetDegree(0);
+            crankPosition=0;
+            moveTo(8.4,34,0.5); //move to crank
+            setCrank(180);
+        break;
+        case NITRO:
+        crankyBoi.SetDegree(180);
+        crankPosition=180;
+        moveTo(8.4,34,0.5); //move to crank
+        setCrank(0);
+        break;
+    }
 
-    moveTo(12,14,1);    //approach ramp
-    rotateTo(0,2);      //get level
+    moveTo(0,27.5,2); //to center of top
+
+    moveTo(12,14,2);    //approach ramp
+    rotateTo(0,5);      //get level
     moveTo(12,-5,1);    //descend ramp
     moveTo(0,-5,1);     //get to center
     moveTo(0,9,1);      //smack the button
@@ -156,12 +176,13 @@ int main(){
 // STARTUP AND BOOKKEEPING ####################################################
 
 void setupRun(){
-    /*
-     *  Subroutine for starting up a run.
-     */
-
+    //forkLift.TouchCalibrate();
+    //vfcrankyBoi.TouchCalibrate();
     forkLift.SetMin(690); forkLift.SetMax(2250);
     forkLift.SetDegree(90);
+    crankyBoi.SetMin(515); crankyBoi.SetMax(2300);
+    crankyBoi.SetDegree(90);
+    crankPosition=90;
     RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
@@ -171,6 +192,7 @@ void setupRun(){
     waitForTouch();
     doc("Waiting for CdS.");
     startWithCds();
+    fuelType=RPS.FuelType();
 }
 void motorTest(){
     forkLift.SetDegree(180);
@@ -197,6 +219,7 @@ void meterMode(){
      *  Turn the robot into a "meter" for debugging sensors
      */
     RPS.InitializeTouchMenu();
+    calibrateRPS();
     while(true){
         //CdS
         float sum=0, redsum=0;
@@ -216,9 +239,9 @@ void meterMode(){
 
         //RPS
         LCD.Write("RPS ( ");
-        LCD.Write(RPS.X());
+        LCD.Write(RPS.X()-startX);
         LCD.Write(" , ");
-        LCD.Write(RPS.Y());
+        LCD.Write(RPS.Y()-startY);
         LCD.Write(" )\nH ");
         LCD.WriteLine(RPS.Heading());
     }
@@ -312,6 +335,14 @@ void raiseForkLift(){
 void lowerForkLift(){
     forkLift.SetDegree(180);
 }
+void setCrank(float pos){
+    for(float i=crankPosition; i<=pos; i+=(pos-crankPosition)/30){
+        crankyBoi.SetDegree(i);
+        Sleep(1.0/30);
+    }
+    crankyBoi.SetDegree(pos);
+    crankPosition=pos;
+}
 
 // RPS #####################################################################
 
@@ -364,7 +395,7 @@ void calibrateRPS(){
 
 void moveTo(float x, float y, float precision){
     /*
-     *  Rotates the robot to face the specified heading.
+     *  Moves the robot to within precision of (x,y).
      */
     updatePosition();
 
@@ -374,22 +405,21 @@ void moveTo(float x, float y, float precision){
         if(distance<6) speedPercent=.3;
         moveBlindTo(x,y,speedPercent);
         Sleep(.8);
-
-        if(updatePosition()==NORPS){
-            //assume we're correct
-            Robot.x=x;
-            Robot.y=y;
-        }
-        if(pythag(Robot.x,Robot.y, x, y)>precision){
+//        if(updatePosition()==NORPS){
+//            //assume we're correct
+//            Robot.x=x;
+//            Robot.y=y;
+//        }
+//        if(pythag(Robot.x,Robot.y, x, y)>precision){
             moveTo(x, y, precision);
-        }
+//        }
     }
 
 }
 
 void moveToFast(float x, float y, float precision){
     /*
-     * Updates position while moving.
+     * Updates position while moving. Doesn't work.
      */
     updatePosition();
     while(pythag(Robot.x,Robot.y, x, y)>precision){
@@ -404,7 +434,7 @@ void moveToFast(float x, float y, float precision){
         if(updated){
             //change in position since last new update
             //consistently overshooting => assume more delay.
-            float d=speed*(TimeNow()-Robot.timestamp+.25/*ADJUST*/);
+            float d=speed*(TimeNow()-Robot.timestamp+.5/*ADJUST*/);
             Robot.x+=d*cos(PI_180*angle);
             Robot.y+=d*sin(PI_180*angle);
         } else {
@@ -442,48 +472,15 @@ void rotateTo(float heading, float precision){
      */
     updatePosition();
     float rotationAngle=deltaAngle(Robot.heading, heading);
-    doc("Rot from/to/by:", Robot.heading, heading, rotationAngle);
-
-    float angleSpeed=.6;
-    if(fabs(rotationAngle)<90) angleSpeed=.4;
-    rotateBy(rotationAngle, angleSpeed);
-    Sleep(.8);
-    if(!updatePosition()){
-        //assume we're correct
-        Robot.heading=heading;
-    }
-    if(fabs(deltaAngle(heading, Robot.heading))>precision){
+    if(fabs(rotationAngle)>precision){
+        doc("Rot from/to/by:", Robot.heading, heading, rotationAngle);
+        float angleSpeed=.6;
+        if(fabs(rotationAngle)<90) angleSpeed=.4;
+        rotateBy(rotationAngle, angleSpeed);
+        Sleep(.8);
         rotateTo(heading, precision);
     }
 
-}
-
-void moveBlind(float angle, float distance, float speedPercent){
-    /*
-     * Moves robot at angle (RelCourse), by distance, at speedPercent,
-     * without RPS.
-     */
-    doc("BlindMove", angle, distance);
-    float speed = moveAtAngleRelCourse(angle, speedPercent);
-    float endTime = TimeNow()+distance/speed;
-    while(TimeNow()<endTime);
-    if(!updatePosition){ //in case RPS fails
-        Robot.x += distance*cos(PI_180*angle);
-        Robot.y += distance*sin(PI_180*angle);
-        doc("CalcPosition", Robot.x, Robot.y);
-    }
-    doc("BlindMove finished");
-    updatePosition();
-    halt();
-}
-
-void moveComponents(float x, float y, float speedPercent){
-    /*
-     * Moves robot by <x,y> without the help of RPS.
-     * Note: we don't do this directly with setVelocityComponents
-     *       because the robot could be tilted
-     */
-    moveBlindTo(Robot.x+x, Robot.y+y, speedPercent);
 }
 void moveBlindTo(float x, float y, float speedPercent){
     /*
@@ -493,7 +490,32 @@ void moveBlindTo(float x, float y, float speedPercent){
     float distance = pythag(Robot.x, Robot.y, x, y);
     moveBlind(angle, distance, speedPercent);
 }
+void moveBlind(float angle, float distance, float speedPercent){
+    /*
+     * Moves robot at angle (RelCourse), by distance, at speedPercent,
+     * without RPS.
+     */
+    doc("BlindMove", angle, distance);
+    float speed = moveAtAngleRelCourse(angle, speedPercent);
+    float endTime = TimeNow()+distance/speed;
+    while(TimeNow()<endTime);
+    halt();
 
+    Robot.x += distance*cos(PI_180*angle); //the one place where we assume
+    Robot.y += distance*sin(PI_180*angle);
+
+    doc("CalcPosition", Robot.x, Robot.y);
+    doc("BlindMove finished");
+
+}
+void moveComponents(float x, float y, float speedPercent){
+    /*
+     * Moves robot by <x,y> without the help of RPS.
+     * Note: we don't do this directly with setVelocityComponents
+     *       because the robot could be tilted
+     */
+    moveBlindTo(Robot.x+x, Robot.y+y, speedPercent);
+}
 float setVelocityComponents(float right, float forward, float speedPercent){
     /*
      *  Sets the x- and y-velocities at speedPercent of the maximum.
@@ -555,7 +577,6 @@ float moveAtAngleRelCourse(float heading, float speedPercent){
     /*
      *  Sets Robot moving at an angle (0=East, 90=North)
      */
-    updatePosition();
     doc("RelCourse: ", heading, speedPercent);
     return moveAtAngleRelRobot(principal(heading-Robot.heading), speedPercent);
 }
@@ -579,7 +600,7 @@ void rotateBy(float angle, float speedPercent){
     float timeEnd=TimeNow()+fabs(angle)/(speedPercent*ROTATIONCONSTANT);
     while(TimeNow()<timeEnd);
     halt();
-    if(!updatePosition) Robot.heading=principal(Robot.heading+angle);
+    Robot.heading=principal(Robot.heading+angle);
     doc("Rotation Finished.");
 }
 
