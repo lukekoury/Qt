@@ -54,6 +54,7 @@ void doc(const char *text, float a);
 void doc(const char *text, float a, float b);
 void doc(const char *text, float a, float b, float c);
 void doc(const char *text, float a, float b, float c, float d);
+
 void setupRun();
 bool startWithCds();
 void calibrateCds();
@@ -61,9 +62,7 @@ void calibrateRPS();
 int getColor();
 void meterMode();
 void waitForTouch();
-int updatePosition();
 void motorTest();
-void moveToFast(float x, float y, float precision);
 
 void raiseForkLift();
 void lowerForkLift();
@@ -89,6 +88,9 @@ void moveComponents(float x, float y, float speedPercent);
 void rotateBy(float angle, float speedPercent);
 void rotateTo(float heading, float precision);
 void moveTo(float x, float y, float precision);
+int updatePosition();
+void moveToFast(float x, float y, float precision);
+void pushToward(float x, float y, float speedPercent, float duration);
 
 // OVERALL PROCEDURE ##########################################################
 
@@ -98,45 +100,62 @@ int main(){
 
     /////////////////////////////////
 
-    moveBlindTo(0,-2,1);
+    moveBlindTo(0,-8,1);
 
-    //Sleep(0.8);
     int color = OFF;
     while(color==OFF){
-        moveBlindTo(9,-7.75,1);
+        moveTo(8.75,-8.5,1);
         color=getColor();
-        if(color==OFF) break;
+        if(color!=OFF) break;
         Sleep(0.8);
         updatePosition();
     }
-    do {
-        switch(color){
-            //Pusher centered 0.5 inches to the left of robot center
-            case REDLIGHT: LCD.Clear(RED);
-//                moveTo(7.75,-8.25,.5);
-            break;
-            case BLUELIGHT: LCD.Clear(BLUE);
-//                moveTo(10.75,-8.25,.5);
-            break;
-        }
-        pushAgainst(270,.4,6);
-        moveComponents(0,2,1);
 
-    } while(!RPS.IsDeadzoneActive());
+    switch(color){
+        //Pusher centered 0.5 inches to the left of robot center
+        case REDLIGHT:
+            LCD.Clear(RED);
+            pushToward(6.5,-13,.8,1);
+        break;
+        case BLUELIGHT:
+            LCD.Clear(BLUE);
+            pushToward(12,-13,.8,1);
+        break;
+    }
 
-    moveTo(-6,-12,0.5); //Move over to wrench
+    moveComponents(0,3,1);
+
+    while(RPS.IsDeadzoneActive()!=2){
+        pushToward(8.75,-13,.8,6);
+        moveComponents(0,3,1);
+    }
+
+    moveComponents(0,2,1);
+    moveComponents(-8,0,1);
+    moveTo(-5.5,-12,2); //over
+    moveTo(-14,-22.1,1); //corner
+    pushToward(-1.79,-22.1,1,1); //lever
+    moveComponents(-4,0,1);
+
+
+    moveTo(-5.5,-11.7,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
     Sleep(0.8);
-    moveTo(-9,-12,0.5); // insert into wrench
+    moveTo(-9,-11.7,0.5); // insert into wrench
     raiseForkLift();
 
-    //moveBlindTo(-13,24,2); //up ramp
+    moveComponents(0,3,1);
+    moveBlindTo(-12,-4.5,1);
+    moveComponents(0,12,1);
+    updatePosition();
     moveTo(-13,15,4); // make sure up ramp
-    rotateTo(-45,8); //line up to deposit wrench
+
     moveTo(0,27.5,1); //to center of top
-    moveTo(-7, 36, 1); //up to garage
+    rotateTo(-45,2); //line up to deposit wrench
+    moveTo(-9.5-.75, 36, 1); //up to garage
     lowerForkLift();
+    Sleep(0.5);
     moveComponents(3,-3,1); // out of garage
     forkLift.SetDegree(90);
 
@@ -147,18 +166,21 @@ int main(){
         case OCTANE:
             crankyBoi.SetDegree(0);
             crankPosition=0;
-            moveTo(6.90,33.79,0.5); //move to crank
+            moveTo(6.40,33.29,0.5); //move to crank
             moveTo(7.90,34.79,0.5); //move to crank
             setCrank(180);
+            Sleep(.8);
         break;
         case NITRO:
             crankyBoi.SetDegree(180);
             crankPosition=180;
-            moveTo(6.90,33.79,0.5); //move to crank
+            moveTo(6.40,33.29,0.5); //move to crank
             moveTo(7.90,34.79,0.5); //move to crank
             setCrank(0);
+            Sleep(.8);
         break;
     }
+    moveComponents(-3,-3,.5);
     Sleep(0.8);
 
     moveTo(0,27.5,2); //to center of top
@@ -166,8 +188,8 @@ int main(){
     moveTo(12,14,2);    //approach ramp
     rotateTo(90,5);      //get level
     moveTo(12,-5,1);    //descend ramp
-    moveTo(-1,-5,1);     //get to center
-    moveTo(-.5,9,1);      //smack the button
+    moveTo(0,-5,1);     //get to center
+    moveTo(0,9,1);      //smack the button
 
 
 
@@ -278,8 +300,8 @@ void calibrateCds(){
 }
 bool startWithCds(){
     /*
-     *  Wait until the CdS sensor consistently reads bright (low) values.
-     *  Return true if successful.
+     *  Wait until the CdS sensor consistently reads
+     *  bright (low) values. Return true if successful.
      */
     int numreadings = 50;
     float readings[numreadings];
@@ -305,7 +327,7 @@ bool startWithCds(){
 }
 int getColor(){
     /*
-     * Reads the CdS cells and determines the light color #define code.
+     * Reads the CdS cells and determines the light color code.
      */
     float avg=0, redavg=0;
     int numCalibrations=50;
@@ -326,7 +348,7 @@ int getColor(){
     else if(redness>.8*brightness) color=REDLIGHT;
     else color=BLUELIGHT;
 
-    doc("Bright/red, color", brightness, redness, color);
+    doc("Bright/red/color:", brightness, redness, color);
     return color;
 }
 
@@ -338,10 +360,13 @@ void raiseForkLift(){
         Sleep(12);
     }
 }
-
 void lowerForkLift(){
-    forkLift.SetDegree(180);
+    for(int i=95; i<180; i++){
+        forkLift.SetDegree(i);
+        Sleep(12);
+    }
 }
+
 void setCrank(float pos){
     for(float i=crankPosition; i<=pos; i+=(pos-crankPosition)/60){
         crankyBoi.SetDegree(i);
@@ -355,10 +380,7 @@ void setCrank(float pos){
 
 int updatePosition(){
     /*
-     *  Reads the RPS data into the 'Robot' global variable
-     *  This is the only place we need to worry about how RPS works.
-     *  True = we have correct position
-     *  False = we do not have correct position.
+     *  Reads the RPS data into the 'Robot' global variable if valid and new
      */
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
@@ -366,19 +388,21 @@ int updatePosition(){
     if(heading>-1){
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
+            doc("RPS Not Updated");
             return OLDRPS;
         } else {
             Robot.x = x;
             Robot.y = y;
             Robot.heading = heading;
             Robot.timestamp=TimeNow();
-            doc("Position: ", x,y,heading, Robot.timestamp);
+            doc("RPS: ", x, y, heading);
             return NEWRPS;
         }
     }
     doc("Position Update Failed: ",x,y,heading);
     return NORPS;
 }
+
 void calibrateRPS(){
     /*
      *  Make the current position the origin.
@@ -386,16 +410,16 @@ void calibrateRPS(){
      */
 //    doc("Step away to calibrate RPS.");
 //    float h=-1;
-//    while(h<0){
+//    while(h<=0){
 //        h=RPS.Heading();
 //        startX=RPS.X();
 //        startY=RPS.Y();
 //    }
 //    Buzzer.Beep();
 //    doc("RPS tare:", startX, startY);
-//    updatePosition();
     startX=17.4;
     startY=29.3;
+    updatePosition();
 }
 
 // MOVEMENT ##############################################################
@@ -404,22 +428,15 @@ void moveTo(float x, float y, float precision){
     /*
      *  Moves the robot to within precision of (x,y).
      */
-    updatePosition();
-
+    doc("moveTo", x, y, precision);
     float distance = pythag(Robot.x,Robot.y, x, y);
     if(distance>precision){
         float speedPercent=1;
         if(distance<6) speedPercent=.3;
         moveBlindTo(x,y,speedPercent);
         Sleep(.8);
-//        if(updatePosition()==NORPS){
-//            //assume we're correct
-//            Robot.x=x;
-//            Robot.y=y;
-//        }
-//        if(pythag(Robot.x,Robot.y, x, y)>precision){
-            moveTo(x, y, precision);
-//        }
+        updatePosition();
+        moveTo(x, y, precision);
     }
 
 }
@@ -466,6 +483,7 @@ void pushAgainst(float heading, float speedPercent, float duration){
      * Benefit:     Unlike moveBlind or moveComponents, this will
      *              not blindly increment position values.
      */
+    doc("push against", heading, duration);
     float speed = moveAtAngleRelCourse(heading,speedPercent);
     float stopTime=TimeNow()+duration;
     while(TimeNow()<stopTime);
@@ -473,6 +491,18 @@ void pushAgainst(float heading, float speedPercent, float duration){
     updatePosition(); //if this fails, assume we didn't move.
 
 }
+
+void pushToward(float x, float y, float speedPercent, float duration){
+    float endTime=TimeNow()+duration;
+    while(TimeNow()<endTime){
+        float angle = arg(Robot.x, Robot.y, x, y);
+        moveAtAngleRelCourse(angle, speedPercent);
+        Sleep(100);
+        updatePosition();
+    }
+    halt();
+}
+
 void rotateTo(float heading, float precision){
     /*
      *  Rotates the robot to face the specified heading.
@@ -491,7 +521,7 @@ void rotateTo(float heading, float precision){
 }
 void moveBlindTo(float x, float y, float speedPercent){
     /*
-     * Moves the robot to (x,y) with out help of RPS.
+     * Moves the robot to (x,y) without help of RPS.
      */
     float angle = arg(Robot.x, Robot.y, x, y);
     float distance = pythag(Robot.x, Robot.y, x, y);
@@ -502,7 +532,6 @@ void moveBlind(float angle, float distance, float speedPercent){
      * Moves robot at angle (RelCourse), by distance, at speedPercent,
      * without RPS.
      */
-    doc("BlindMove", angle, distance);
     float speed = moveAtAngleRelCourse(angle, speedPercent);
     float endTime = TimeNow()+distance/speed;
     while(TimeNow()<endTime);
@@ -511,8 +540,7 @@ void moveBlind(float angle, float distance, float speedPercent){
     Robot.x += distance*cos(PI_180*angle); //the one place where we assume
     Robot.y += distance*sin(PI_180*angle);
 
-    doc("CalcPosition", Robot.x, Robot.y);
-    doc("BlindMove finished");
+    doc("blindPosition", Robot.x, Robot.y);
 
 }
 void moveComponents(float x, float y, float speedPercent){
@@ -547,8 +575,8 @@ float setVelocityComponents(float right, float forward, float speedPercent){
     setWheels(fl,fr,bl,br);
     //pythagorean between two components of motion to return speed
     float speed = SPEEDCONSTANT * sqrt(fl*fl+fr*fr);
-    doc("Wheels set: ",fl,fr);
-    doc("Velocity:", right, forward, speed);
+    //doc("Wheels set: ",fl,fr);
+    //doc("Velocity:", right, forward, speed);
     return speed;
 }
 
@@ -574,7 +602,7 @@ float moveAtAngleRelRobot(float heading, float speedPercent){
     /*
      *  Sets Robot moving at an angle (0=right, 90=forward)
      */
-    doc("RelRobot: ", heading, speedPercent);
+    //doc("RelRobot: ", heading, speedPercent);
     return setVelocityComponents(
                 cos(PI_180*heading),
                 sin(PI_180*heading),
@@ -584,7 +612,7 @@ float moveAtAngleRelCourse(float heading, float speedPercent){
     /*
      *  Sets Robot moving at an angle (0=East, 90=North)
      */
-    doc("RelCourse: ", heading, speedPercent);
+    //doc("RelCourse: ", heading, speedPercent);
     return moveAtAngleRelRobot(principal(heading-Robot.heading), speedPercent);
 }
 void setRotation(float direction){
@@ -594,14 +622,14 @@ void setRotation(float direction){
      *      at 50% speed.
      */
     if(fabs(direction)>1) direction=(direction>0? 1:-1);
-    doc("Setting Rotation:", direction);
+    //doc("Setting Rotation:", direction);
     setWheels(direction, direction, direction, direction);
 }
 void rotateBy(float angle, float speedPercent){
     /*
      *  Rotates robot by given angle and %speed.
      */
-    doc("Rotating by:", angle, speedPercent);
+    //doc("Rotating by:", angle, speedPercent);
     setRotation(speedPercent*(angle>0? 1:-1));
 
     float timeEnd=TimeNow()+fabs(angle)/(speedPercent*ROTATIONCONSTANT);
@@ -616,8 +644,8 @@ void rotateBy(float angle, float speedPercent){
 
 float principal(float x){
     //returns x's coterminal angle in [0,360).
-    while(x>=360)x-=360;
-    while(x<0)x+=360;
+    while(x>=360) x-=360;
+    while(x<0) x+=360;
     return x;
 }
 float arg(float x1, float y1, float x2, float y2){
