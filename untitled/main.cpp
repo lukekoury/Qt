@@ -33,10 +33,16 @@ struct POS{
     float timestamp; //when this was last updated
 } Robot;
 
+
+
+
+
 float cdsControl, redControl;
 float startX, startY;
+float crankX, crankY, wrenchX, wrenchY;
 int fuelType;
 float crankPosition;
+float runBeginTime=0;
 
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
@@ -135,14 +141,14 @@ int main(){
     moveTo(-5.5,-12,2); //over
     moveTo(-14,-22.1,1); //corner
     pushToward(-1.79,-22.1,1,1); //lever
-    moveComponents(-4,0,1);
+    moveComponents(-5,0,1);
 
 
-    moveTo(-5.5,-11.7,0.5); //Move over to wrench
+    moveTo(wrenchX+2.5,wrenchY,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
     Sleep(0.8);
-    moveTo(-9,-11.7,0.5); // insert into wrench
+    moveTo(wrenchX,wrenchY,0.5); // insert into wrench
     raiseForkLift();
 
     moveComponents(0,3,1);
@@ -153,7 +159,7 @@ int main(){
 
     moveTo(0,27.5,1); //to center of top
     rotateTo(-45,2); //line up to deposit wrench
-    moveTo(-9.5-.75, 36, 1); //up to garage
+    moveTo(-9.5, crankY-0.5, 1); //up to garage
     lowerForkLift();
     Sleep(0.5);
     moveComponents(3,-3,1); // out of garage
@@ -166,16 +172,16 @@ int main(){
         case OCTANE:
             crankyBoi.SetDegree(0);
             crankPosition=0;
-            moveTo(6.40,33.29,0.5); //move to crank
-            moveTo(7.90,34.79,0.5); //move to crank
+            moveTo(crankX-1,crankY-1,0.5); //move to crank
+            moveTo(crankX,crankY,0.5); //move to crank
             setCrank(180);
             Sleep(.8);
         break;
         case NITRO:
             crankyBoi.SetDegree(180);
             crankPosition=180;
-            moveTo(6.40,33.29,0.5); //move to crank
-            moveTo(7.90,34.79,0.5); //move to crank
+            moveTo(crankX-1,crankY-1,0.5); //move to crank
+            moveTo(crankX,crankY,0.5); //move to crank
             setCrank(0);
             Sleep(.8);
         break;
@@ -206,29 +212,38 @@ int main(){
 
 void setupRun(){
     //forkLift.TouchCalibrate();
-    //vfcrankyBoi.TouchCalibrate();
+    //crankyBoi.TouchCalibrate();
     forkLift.SetMin(690); forkLift.SetMax(2250);
-    forkLift.SetDegree(90);
     crankyBoi.SetMin(515); crankyBoi.SetMax(2300);
-    crankyBoi.SetDegree(90);
-    crankPosition=90;
+
     RPS.InitializeTouchMenu();
     SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
-    calibrateCds();
+
+    forkLift.SetDegree(180);
+    crankyBoi.SetDegree(180);
     calibrateRPS();
-    doc("Touch to dominate.");
-    waitForTouch();
+
+    LCD.Clear();
+    forkLift.SetDegree(90);
+    crankyBoi.SetDegree(90);
+    crankPosition=90;
+    calibrateCds();
+    doc("Prepare for Domination.");
+    //waitForTouch();
     doc("Waiting for CdS.");
     startWithCds();
     fuelType=RPS.FuelType();
 }
 void motorTest(){
     forkLift.SetDegree(180);
+    crankyBoi.SetDegree(180);
     setWheels(1,0,0,0); Sleep(250);
+    crankyBoi.SetDegree(0);
     setWheels(0,1,0,0); Sleep(250);
     forkLift.SetDegree(90);
     setWheels(0,0,1,0); Sleep(250);
+    crankyBoi.SetDegree(90);
     setWheels(0,0,0,1); Sleep(250);
     halt();
 }
@@ -243,38 +258,6 @@ void waitForTouch(){
     while(LCD.Touch(&x,&y)) Sleep(1); //until released
     Buzzer.Beep();
 }
-void meterMode(){
-    /*
-     *  Turn the robot into a "meter" for debugging sensors
-     */
-    RPS.InitializeTouchMenu();
-    calibrateRPS();
-    while(true){
-        //CdS
-        float sum=0, redsum=0;
-        int numCalibrations=50;
-        for(int i=0; i<numCalibrations; i++){
-            sum+=cds.Value();
-            redControl+=cdsRed.Value();
-            Sleep(4);
-        }
-        cdsControl = sum / numCalibrations;
-        redControl = redsum / numCalibrations;
-        LCD.Clear();
-        LCD.Write("CdS: ");
-        LCD.WriteLine(cdsControl);
-        LCD.Write("CdSRed: ");
-        LCD.WriteLine(redControl);
-
-        //RPS
-        LCD.Write("RPS ( ");
-        LCD.Write(RPS.X()-startX);
-        LCD.Write(" , ");
-        LCD.Write(RPS.Y()-startY);
-        LCD.Write(" )\nH ");
-        LCD.WriteLine(RPS.Heading());
-    }
-}
 
 // CdS SENSORS ###############################################################
 
@@ -284,7 +267,7 @@ void calibrateCds(){
      * Takes 1.4 seconds in total.
      */
     LCD.WriteLine("Touch to calibrate CdS.");
-    waitForTouch();
+    //waitForTouch();
     Sleep(1.0); //Wait a bit to avoid interfenece of user
     float sum=0, redsum=0;
     int numCalibrations=100;
@@ -322,6 +305,7 @@ bool startWithCds(){
         sum+=readings[numreadings-1];
         Sleep(2);
     }
+    runBeginTime=TimeNow();
     doc("Going with CdS.", sum/numreadings, m);
     return true;
 }
@@ -344,10 +328,13 @@ int getColor(){
 
     int color;
 
-    if(brightness<.3) color=OFF;
-    else if(redness>.8*brightness) color=REDLIGHT;
-    else color=BLUELIGHT;
-
+    if(brightness<.3){
+        color=OFF;
+    }else if(redness>.8*brightness){
+        color=REDLIGHT;
+    }else{
+        color=BLUELIGHT;
+    }
     doc("Bright/red/color:", brightness, redness, color);
     return color;
 }
@@ -403,22 +390,123 @@ int updatePosition(){
     return NORPS;
 }
 
+class waypoint{
+public:
+    waypoint(char* name, float x, float y, float screenLeft, float screenTop, float w, float h);
+    float myDefaultX;
+    float myDefaultY;
+    float myX;
+    float myY;
+    FEHIcon::Icon calButton;
+    FEHIcon::Icon revertButton;
+    void calibrateHere();
+    void revert();
+    bool calibrated;
+    unsigned int labelColor();
+};
+    waypoint::waypoint(char* name, float x, float y, float screenLeft, float screenTop, float w, float h){
+        waypoint::myDefaultX=x; waypoint::myDefaultY=y;
+        waypoint::myX=myDefaultX; waypoint::myY=myDefaultY;
+        waypoint::calibrated=false;
+        waypoint::calButton.SetProperties(name,screenLeft+1, screenTop+1,w/2-2,h-2,GOLD,LIGHTGOLDENRODYELLOW);
+        waypoint::revertButton.SetProperties("Revert",screenLeft+w/2+1, screenTop+1,w/2-2,h-2,PINK,LIGHTPINK);
+        waypoint::calButton.Draw();
+        waypoint::revertButton.Draw();
+    }
+    void waypoint::calibrateHere(){
+        Buzzer.Beep();
+        Robot.x=-1; Robot.y=-1;
+        while(Robot.x<0 || Robot.y<0){
+            Robot.x=RPS.X(); Robot.y=RPS.Y();
+        }
+        waypoint::myX=Robot.x; waypoint::myY=Robot.y;
+        waypoint::calibrated=true;
+    }
+    void waypoint::revert(){
+        Buzzer.Beep();
+        waypoint::myX=waypoint::myDefaultX;
+        waypoint::myY=waypoint::myDefaultY;
+        waypoint::calibrated=false;
+    }
+    unsigned int waypoint::labelColor(){
+        if(waypoint::calibrated){
+            float d=pythag(waypoint::myX,waypoint::myY,waypoint::myDefaultX,waypoint::myDefaultY);
+            if(d<1){
+                return GREEN;
+            }else if(d<3){
+                return YELLOW;
+            }else{
+                return ORANGERED;
+            }
+        }
+        return GRAY;
+    }
+
 void calibrateRPS(){
-    /*
-     *  Make the current position the origin.
-     *  Keep checking until detected
-     */
-//    doc("Step away to calibrate RPS.");
-//    float h=-1;
-//    while(h<=0){
-//        h=RPS.Heading();
-//        startX=RPS.X();
-//        startY=RPS.Y();
-//    }
-//    Buzzer.Beep();
-//    doc("RPS tare:", startX, startY);
-    startX=17.4;
-    startY=29.3;
+    LCD.Clear();
+    waypoint crank("Crank",     25.4,63.9   ,160,0,160,60);
+    waypoint wrench("Wrench",    8.4,17.9   ,160,60,160,60);
+    waypoint origin("Origin",   17.1,29.0   ,160,120,160,60);
+    FEHIcon::Icon motorButton, goButton;
+    motorButton.SetProperties("Motors",161,181,78,58,CYAN,LIGHTCYAN);
+    goButton.SetProperties("GO",241,181,78,58,GREEN,LIGHTGREEN);
+    goButton.Draw();
+    motorButton.Draw();
+
+    LCD.SetFontColor(GRAY);
+    LCD.WriteAt(crank.myDefaultX, 0,10);     LCD.WriteAt(crank.myDefaultY, 80,10);
+    LCD.WriteAt(wrench.myDefaultX, 0,70);   LCD.WriteAt(wrench.myDefaultY, 80,70);
+    LCD.WriteAt(origin.myDefaultX, 0,130);  LCD.WriteAt(origin.myDefaultY, 80,130);
+
+    float x,y;
+    while(true){
+        LCD.Touch(&x,&y);
+        if(goButton.Pressed(x,y,1)) break;
+        if(crank.calButton.Pressed(x,y,1)){
+            crank.calibrateHere();
+        }
+        if(wrench.calButton.Pressed(x,y,1)){
+            wrench.calibrateHere();
+        }
+        if(origin.calButton.Pressed(x,y,1)){
+            origin.calibrateHere();
+        }
+        if(crank.revertButton.Pressed(x,y,1)){
+            crank.revert();
+        }
+        if(wrench.revertButton.Pressed(x,y,1)){
+            wrench.revert();
+        }
+        if(origin.revertButton.Pressed(x,y,1)){
+            origin.revert();
+        }
+        if(motorButton.Pressed(x,y,1)){
+            motorTest();
+        }
+
+        LCD.SetFontColor(crank.labelColor());
+            LCD.WriteAt(crank.myX, 0,40);   LCD.WriteAt(crank.myY, 80,40);
+        LCD.SetFontColor(crank.labelColor());
+            LCD.WriteAt(wrench.myX, 0,100); LCD.WriteAt(wrench.myY, 80,100);
+        LCD.SetFontColor(crank.labelColor());
+            LCD.WriteAt(origin.myX, 0,160); LCD.WriteAt(origin.myY, 80,160);
+
+        LCD.SetFontColor(WHITE);
+        LCD.WriteAt(Robot.x, 0,200); LCD.WriteAt(Robot.y, 80,200);
+        Sleep(1);
+
+    }
+
+    startX=origin.myX;
+    startY=origin.myY;
+    doc("RPS Tare:",startX,startY);
+    crankX=crank.myX-startX;
+    crankY=crank.myY-startY;
+    doc("Crank Position:",crankX, crankY);
+    wrenchX=wrench.myX-startX;
+    wrenchY=wrench.myY-startY;
+    doc("Wrench Position:",wrenchX, wrenchY);
+
     updatePosition();
 }
 
@@ -527,6 +615,7 @@ void moveBlindTo(float x, float y, float speedPercent){
     float distance = pythag(Robot.x, Robot.y, x, y);
     moveBlind(angle, distance, speedPercent);
 }
+
 void moveBlind(float angle, float distance, float speedPercent){
     /*
      * Moves robot at angle (RelCourse), by distance, at speedPercent,
@@ -543,6 +632,7 @@ void moveBlind(float angle, float distance, float speedPercent){
     doc("blindPosition", Robot.x, Robot.y);
 
 }
+
 void moveComponents(float x, float y, float speedPercent){
     /*
      * Moves robot by <x,y> without the help of RPS.
@@ -551,6 +641,7 @@ void moveComponents(float x, float y, float speedPercent){
      */
     moveBlindTo(Robot.x+x, Robot.y+y, speedPercent);
 }
+
 float setVelocityComponents(float right, float forward, float speedPercent){
     /*
      *  Sets the x- and y-velocities at speedPercent of the maximum.
@@ -667,25 +758,25 @@ float deltaAngle(float from, float to){
 // DATA LOGGING ###############################################################
 // functions for displaying stuff on screen and logging to the SD card:
 void doc(const char *text){
-    SD.Printf(FRMT, TimeNow());
+    SD.Printf(FRMT, TimeNow()-runBeginTime);
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf("\r\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a){
-    SD.Printf(FRMT, TimeNow());
+    SD.Printf(FRMT, TimeNow()-runBeginTime);
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
     SD.Printf("\r\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b){
-    SD.Printf(FRMT, TimeNow());
+    SD.Printf(FRMT, TimeNow()-runBeginTime);
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
     SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
     SD.Printf("\r\n"); LCD.Write('\n');
 }
 void doc(const char *text, float a, float b, float c){
-    SD.Printf(FRMT, TimeNow());
+    SD.Printf(FRMT, TimeNow()-runBeginTime);
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
     SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
@@ -693,7 +784,7 @@ void doc(const char *text, float a, float b, float c){
     SD.Printf("\r\n"); LCD.Write('\n'); LCD.Write(" ");
 }
 void doc(const char *text, float a, float b, float c, float d){
-    SD.Printf(FRMT, TimeNow());
+    SD.Printf(FRMT, TimeNow()-runBeginTime);
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf(FRMT, a); LCD.Write(a); LCD.Write(" ");
     SD.Printf(FRMT, b); LCD.Write(b); LCD.Write(" ");
