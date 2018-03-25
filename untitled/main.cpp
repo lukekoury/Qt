@@ -26,85 +26,104 @@
 using namespace std;
 
 // GLOBAL VARIABLES ###########################################################
+
 struct POS{
+    //store usable values for the robot's current position
     float x;
     float y;
     float heading;
     float timestamp; //when this was last updated
 } Robot;
 
-
-float cdsControl, redControl;
-float startX, startY;
-float crankX, crankY, wrenchX, wrenchY;
+float cdsControl, redControl; //baseline voltages for comparison
+float startX, startY; //the "tare" that will make (0,0) be the starting position.
+float crankX, crankY, wrenchX, wrenchY; //Calibration waypoints
 int fuelType;
-float crankPosition;
-float runBeginTime=0;
-float movementEndTime=9999999999;
+float crankPosition; //current crank orientation in degrees
+float runBeginTime=0; //when the run begins, so that the log file has times beginning then.
+float movementEndTime=9999999999; //if
 
+//Drivetrain
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
 FEHMotor motorFR(FEHMotor::Motor1,7.2);
 FEHMotor motorBL(FEHMotor::Motor2,7.2);
 FEHMotor motorBR(FEHMotor::Motor3,7.2);
 
+//Sensors
 AnalogInputPin cds(FEHIO::P0_1);
 AnalogInputPin cdsRed(FEHIO::P0_0);
+
+//Servos
 FEHServo crankyBoi(FEHServo::Servo0);
 FEHServo forkLift(FEHServo::Servo1);
 
 // FUNCTION PROTOTYPES ########################################################
+
+//documentation for log file
 void doc(const char *text);
 void doc(const char *text, float a);
 void doc(const char *text, float a, float b);
 void doc(const char *text, float a, float b, float c);
 void doc(const char *text, float a, float b, float c, float d);
 
+//setup & sensors
 void setupRun();
 bool startWithCds();
 void calibrateCds();
 void calibrateRPS();
+int updatePosition();
 int getColor();
 void meterMode();
 void waitForTouch();
 void motorTest();
 
+//actions
 void raiseForkLift();
 void lowerForkLift();
 void setCrank(float pos);
 
+//Istantaneous motion commands - they set wheels and take no time.
 void setWheels(float fl, float fr, float bl, float br);
 void halt();
-
 float setVelocityComponents(float right, float forward, float speedPercent);
 float moveAtAngleRelRobot(float heading, float speedPercent);
 float moveAtAngleRelCourse(float heading, float speedPercent);
 void setRotation(float direction);
-void pushAgainst(float heading, float speedPercent, float duration);
 
-float principal(float x);
-float arg(float x1,float y1,float x2,float y2);
-float pythag(float x1,float y1,float x2,float y2);
-float deltaAngle(float from, float to);
-
+//Motion commands that take time
 void moveBlind(float angle, float distance, float speedPercent);
 void moveBlindTo(float x, float y, float speedPercent);
 void moveComponents(float x, float y, float speedPercent);
 void rotateBy(float angle, float speedPercent);
 void rotateTo(float heading, float precision);
 void moveTo(float x, float y, float precision);
-int updatePosition();
 void moveToFast(float x, float y, float precision);
+void pushAgainst(float heading, float speedPercent, float duration);
 void pushToward(float x, float y, float speedPercent, float duration);
+void razzleDazzle(float x, float y, float heading);
+
+//Math functions without side effects
+float principal(float x);
+float arg(float x1,float y1,float x2,float y2);
+float pythag(float x1,float y1,float x2,float y2);
+float deltaAngle(float from, float to);
+
 
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
+
+//    SD.OpenLog();
+//    Robot = {0,0,0,0};
+//    razzleDazzle(0,20,90);
+//    return 0;
+
     setupRun();
 
 
-    /////////////////////////////////
-
-
+    //######################################################
+    //# THE MAIN PROGRAM #######################################
+    //##############################################################
 
     moveBlindTo(0,-8,1);
 
@@ -139,18 +158,19 @@ int main(){
         switch(color){
         //hold the white button
             case REDLIGHT:
-                pushToward(9.25,-13,.8,0.3);
+                pushToward(9.25,-13,.8,0.2);
             break;
             case BLUELIGHT:
-                pushToward(9.25,-13,.8,0.3);
+                pushToward(9.25,-13,.8,0.2);
             break;
         }
         updatePosition();
     }
 
-    moveComponents(0,5,1); //away from button board
-    moveBlindTo(wrenchX,wrenchY,1);
-    moveTo(wrenchX,wrenchY-10,2); //up to lever
+    moveComponents(0,5,1);      //away from button board
+    moveTo(wrenchX,wrenchY,3);  //line up East-West for lever
+    movementEndTime=TimeNow()+8;
+        moveTo(wrenchX,wrenchY-10,2); //up to lever
     pushToward(-1.79,-22.1,1,1); //push lever
     halt();
     moveComponents(-3,0,1); //back up
@@ -160,7 +180,7 @@ int main(){
     moveTo(wrenchX+2.5,wrenchY,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
-    Sleep(0.8); //lets RPS account for new heading
+    //Sleep(0.8); //lets RPS account for new heading. Remove?
     moveTo(wrenchX,wrenchY,0.5); // insert into wrench
     raiseForkLift();
 
@@ -185,8 +205,8 @@ int main(){
             crankPosition=0;
             moveTo(crankX-2,crankY-2,0.5); //move to crank
             rotateTo(-45,3);
-            movementEndTime=TimeNow()+5;
-            moveTo(crankX,crankY,0.5); //move to crank
+            movementEndTime=TimeNow()+8;
+                moveTo(crankX,crankY,0.5); //move to crank
             setCrank(180);
             Sleep(.8);
         break;
@@ -195,17 +215,17 @@ int main(){
             crankPosition=180;
             moveTo(crankX-2,crankY-2,0.5); //move to crank
             rotateTo(-45,3);
-            movementEndTime=TimeNow()+5;
-            moveTo(crankX,crankY,0.5); //move to crank
+            movementEndTime=TimeNow()+8;
+                moveTo(crankX,crankY,0.5); //move to crank
             setCrank(0);
             Sleep(.8);
         break;
     }
+
     moveComponents(-3,-3,.5);
-    //Sleep(0.8);
-
+    movementEndTime=TimeNow()+8;
     moveTo(0,27.5,2); //to center of top
-
+    crankyBoi.SetDegree(90);
     moveTo(12,14,2);    //approach ramp
     rotateTo(0,20);    //get level
     moveTo(12,-5,3);    //descend ramp
@@ -214,7 +234,9 @@ int main(){
 
 
 
-    /////////////////////////////////
+    //##############################################################
+    //##########################################################
+    //######################################################
 
 
 
@@ -222,6 +244,7 @@ int main(){
     SD.CloseLog();
     return 0;
 }
+
 
 // STARTUP ###############################################################
 
@@ -275,7 +298,8 @@ void waitForTouch(){
     Buzzer.Beep();
 }
 
-// CdS SENSORS ###############################################################
+
+// CdS CELL SENSORS ###############################################################
 
 void calibrateCds(){
     /*
@@ -355,6 +379,7 @@ int getColor(){
     return color;
 }
 
+
 // ACTIONS #################################################################
 
 void raiseForkLift(){
@@ -379,11 +404,13 @@ void setCrank(float pos){
     crankPosition=pos;
 }
 
+
 // RPS #####################################################################
 
 int updatePosition(){
     /*
      *  Reads the RPS data into the 'Robot' global variable if valid and new
+     *  (The "Timestamp" functionality is not currently used.)
      */
     float x = RPS.X()-startX;
     float y = RPS.Y()-startY;
@@ -407,16 +434,21 @@ int updatePosition(){
 }
 
 class waypoint{
+    //points to caibrate before run
 public:
+    //fill constructor
     waypoint(char* name, float x, float y, float screenLeft, float screenTop, float w, float h);
+    //defaults in case we don't have time to calibrate
     float myDefaultX;
     float myDefaultY;
+    //current values
     float myX;
     float myY;
+    //GUI buttons
     FEHIcon::Icon calButton;
     FEHIcon::Icon revertButton;
     void calibrateHere();
-    void revert();
+    void revert(); //to defaults
     bool calibrated;
     unsigned int labelColor();
 };
@@ -443,12 +475,14 @@ public:
 
     }
     void waypoint::revert(){
+        //revert x,y to defaults
         Buzzer.Beep();
         waypoint::myX=waypoint::myDefaultX;
         waypoint::myY=waypoint::myDefaultY;
         waypoint::calibrated=false;
     }
     unsigned int waypoint::labelColor(){
+        //color depends on how close calibration is to expected value
         if(waypoint::calibrated){
             float d=pythag(waypoint::myX,waypoint::myY,waypoint::myDefaultX,waypoint::myDefaultY);
             if(d<1){
@@ -463,6 +497,24 @@ public:
     }
 
 void calibrateRPS(){
+    /*
+     * Allows us to re-calibrate exact cooordinates before each run.
+     *
+     * Creates a GUI that will be used as follows:
+     *  1. Move Robot to Crank and press "Crank"
+     *  2. Move Robot to Wrench and press "Wrench:
+     *  3. Press "Motors" To test all 6 Motors and move them to starting positions
+     *  4. Move Robot to Origin (starting light) and press "Origin"
+     *  5. Press "GO!" to begin.
+     *
+     *  -If any of these steps is not followed, we should be fine because of the defaults.
+     *  -The GUI includes the default values (GRAY) next to the current waypoint values.
+     *  -The current waypoint values are colored by their distance from the default
+     *      -Red=more than 3 inches away; Green=closer than 1in; Yellow=between
+     *      -Gray=hasn't been changed from default
+     *  -If one of the values is incorrect, Recalibrate OR press "Revert" to reset to default.
+     */
+
     LCD.Clear();
     waypoint crank("Crank",     25.4,63.9   ,160,0,160,60);
     waypoint wrench("Wrench",    8.4,17.9   ,160,60,160,60);
@@ -473,37 +525,24 @@ void calibrateRPS(){
     goButton.Draw();
     motorButton.Draw();
 
-    LCD.SetFontColor(GRAY);
+    LCD.SetFontColor(GRAY); //Display Defaults
     LCD.WriteAt(crank.myDefaultX, 0,10);     LCD.WriteAt(crank.myDefaultY, 80,10);
     LCD.WriteAt(wrench.myDefaultX, 0,70);   LCD.WriteAt(wrench.myDefaultY, 80,70);
     LCD.WriteAt(origin.myDefaultX, 0,130);  LCD.WriteAt(origin.myDefaultY, 80,130);
 
-    float x,y;
+    float x,y; //screen position touched
     while(true){
         LCD.Touch(&x,&y);
         if(goButton.Pressed(x,y,1)) break;
-        if(crank.calButton.Pressed(x,y,1)){
-            crank.calibrateHere();
-        }
-        if(wrench.calButton.Pressed(x,y,1)){
-            wrench.calibrateHere();
-        }
-        if(origin.calButton.Pressed(x,y,1)){
-            origin.calibrateHere();
-        }
-        if(crank.revertButton.Pressed(x,y,1)){
-            crank.revert();
-        }
-        if(wrench.revertButton.Pressed(x,y,1)){
-            wrench.revert();
-        }
-        if(origin.revertButton.Pressed(x,y,1)){
-            origin.revert();
-        }
-        if(motorButton.Pressed(x,y,1)){
-            motorTest();
-        }
+        if(crank.calButton.Pressed(x,y,1))      crank.calibrateHere();
+        if(wrench.calButton.Pressed(x,y,1))     wrench.calibrateHere();
+        if(origin.calButton.Pressed(x,y,1))     origin.calibrateHere();
+        if(crank.revertButton.Pressed(x,y,1))   crank.revert();
+        if(wrench.revertButton.Pressed(x,y,1))  wrench.revert();
+        if(origin.revertButton.Pressed(x,y,1))  origin.revert();
+        if(motorButton.Pressed(x,y,1))          motorTest();
 
+        //Display calibrations
         LCD.SetFontColor(crank.labelColor());
             LCD.WriteAt(crank.myX, 0,40);   LCD.WriteAt(crank.myY, 80,40);
         LCD.SetFontColor(wrench.labelColor());
@@ -511,7 +550,7 @@ void calibrateRPS(){
         LCD.SetFontColor(origin.labelColor());
             LCD.WriteAt(origin.myX, 0,160); LCD.WriteAt(origin.myY, 80,160);
 
-        LCD.SetFontColor(WHITE);
+        LCD.SetFontColor(WHITE); //Display Current position
         LCD.WriteAt(RPS.X(), 0,203); LCD.WriteAt(RPS.Y(), 80,203);
         Sleep(1);
 
@@ -532,11 +571,13 @@ void calibrateRPS(){
     updatePosition();
 }
 
-// MOVEMENT ##############################################################
+
+// MOVEMENT #################################################################
 
 void moveTo(float x, float y, float precision){
     /*
      *  Moves the robot to within precision of (x,y).
+     *  Is the most frequently called functin in the main program.
      */
 
     doc("moveTo", x, y, precision);
@@ -545,17 +586,82 @@ void moveTo(float x, float y, float precision){
         float speedPercent=1;
         if(distance<6) speedPercent=.3;
         moveBlindTo(x,y,speedPercent);
-        Sleep(.8);
+        Sleep(.8); //wait for RPS to catch up
         updatePosition();
-        moveTo(x, y, precision);
+        moveTo(x, y, precision); //Recursion is always good and cool, right?
     } else {
-        movementEndTime=99999999999;
+        //Finish moving
+        movementEndTime=99999999999;  //so as not to affect the next movement
     }
+}
+
+void razzleDazzle(float x, float y, float heading){
+    float d=pythag(Robot.x,Robot.y, x, y);
+    float deltaHeading=deltaAngle(Robot.heading, heading);
+    //doc("RazzleDazzle ",x,y,heading);
+    if(d>3 ||  fabs(deltaHeading)>10){
+        float totalTimeEst=d/(SPEEDCONSTANT);
+        float spin = (deltaHeading/totalTimeEst) / ROTATIONCONSTANT;
+        if(fabs(spin)>1) spin=(spin>0? 1:-1);
+
+        float dt=.15;
+        float angleRelCourse=arg(Robot.x,Robot.y, x, y);
+        float angleRelRobot=principal(angleRelCourse-Robot.heading);
+        float forward=sin(angleRelRobot*PI_180);
+        float right=cos(angleRelRobot*PI_180);
+
+        doc("angleRel C/R ", angleRelCourse,angleRelRobot);
+        doc("F/R/Spin/angle ", forward, right, spin, angleRelRobot);
+
+        float fl=-forward-right;
+        float fr=+forward-right;
+        float bl=-forward+right;
+        float br=+forward+right;
+        //Scale back values so speed is maximum and no values greater than 1:
+        float m=fmax( fmax( fabs(fl),fabs(fr) ), fmax( fabs(bl),fabs(br) ) );
+        if(fabs(m)>.001){
+            fl/=m; fr/=m; br/=m; bl/=m;
+        }
+
+        //doc("WheelsBefore ", fl,fr,bl,br);
+        fl=(1-fabs(spin))*fl+spin;
+        fr=(1-fabs(spin))*fr+spin;
+        bl=(1-fabs(spin))*bl+spin;
+        br=(1-fabs(spin))*br+spin;
+        //doc("WheelsAfter ", fl,fr,bl,br);
+
+        setWheels(fl,fr,bl,br);
+        float endTime=TimeNow()+dt;
+
+        float linearSpeed = SPEEDCONSTANT * sqrt( pow((fl-br)/2,2) + pow((fr-bl)/2,2));
+        float theta = spin*ROTATIONCONSTANT*dt*PI_180; //arc angle traveled
+        float s = linearSpeed*dt; //arc length traveled
+        float r = s/theta; //arc radius
+        doc("theta/s/r ",theta,s,r);
+        float deltaRight = -r*(1-cos(theta));
+        float deltaForward = r*sin(theta);
+
+        while(TimeNow()<endTime);
+
+        //project back onto Course Axes
+        float deltaX=deltaRight*sin(angleRelCourse*PI_180)+deltaForward*cos(angleRelCourse*PI_180);
+        float deltaY=-deltaRight*cos(angleRelCourse*PI_180)+deltaForward*sin(angleRelCourse*PI_180);
+        doc("dR,dF:",deltaRight,deltaForward);
+        doc("dx,dy",deltaX,deltaY);
+        Robot.x += deltaX;
+        Robot.y += deltaY;
+
+        Robot.heading = principal(Robot.heading+spin*ROTATIONCONSTANT*dt);
+
+        doc("x/y/h ",Robot.x, Robot.y, Robot.heading);
+        razzleDazzle(x, y, heading);
+        halt();
+   }
 }
 
 void moveToFast(float x, float y, float precision){
     /*
-     * Updates position while moving. Doesn't work.
+     * Updates position while moving. Doesn't work. Unused.
      */
     updatePosition();
     while(pythag(Robot.x,Robot.y, x, y)>precision){
@@ -594,6 +700,7 @@ void pushAgainst(float heading, float speedPercent, float duration){
      * Used to push against buttons.
      * Benefit:     Unlike moveBlind or moveComponents, this will
      *              not blindly increment position values.
+     * Currently Unused.
      */
     doc("push against", heading, duration);
     float speed = moveAtAngleRelCourse(heading,speedPercent);
@@ -605,6 +712,10 @@ void pushAgainst(float heading, float speedPercent, float duration){
 }
 
 void pushToward(float x, float y, float speedPercent, float duration){
+    /*
+     * Pushes toward a particular point for some duration.
+     * Updates position and adjusts, so more stable than simple pushAgainst.
+     */
     float endTime=TimeNow()+duration;
     while(TimeNow()<endTime){
         float angle = arg(Robot.x, Robot.y, x, y);
@@ -617,6 +728,7 @@ void pushToward(float x, float y, float speedPercent, float duration){
 void rotateTo(float heading, float precision){
     /*
      *  Rotates the robot to face the specified heading.
+     *  (Within precision degrees)
      */
     updatePosition();
     float rotationAngle=deltaAngle(Robot.heading, heading);
@@ -649,7 +761,10 @@ void moveBlind(float angle, float distance, float speedPercent){
     while(TimeNow()<endTime);
     halt();
 
-    Robot.x += distance*cos(PI_180*angle); //the one place where we assume
+    //This is the one place where we assume that the robot's
+    //  intended motion has actually happened.
+    //  (Along with wherever this function is called)
+    Robot.x += distance*cos(PI_180*angle);
     Robot.y += distance*sin(PI_180*angle);
 
     doc("blindPosition", Robot.x, Robot.y);
@@ -670,8 +785,8 @@ float setVelocityComponents(float right, float forward, float speedPercent){
      *  Sets the x- and y-velocities at speedPercent of the maximum.
      *  arguments between -1 and 1.
      *
-     *  Ex: setVelocityComponents(-1, 1, 0.75); will set Robot going forward
-     *       and to the left at 75% Speed
+     *  Ex: setVelocityComponents(-1, 1, 0.75); will set Robot going diagonally
+     *       forward and to the left at 75% Speed
      *  returns speed in inches/second
      */
 
@@ -753,8 +868,9 @@ void rotateBy(float angle, float speedPercent){
     doc("Rotation Finished.");
 }
 
+
 // MATH FUNCTIONS WITHOUT SIDE EFFECTS #######################################
-//      note: angles measured counteclockwise from +x axis
+//      note: angles measured in degrees counteclockwise from +x axis
 
 float principal(float x){
     //returns x's coterminal angle in [0,360).
@@ -771,19 +887,27 @@ float pythag(float x1, float y1, float x2, float y2){
     return sqrt(pow(y2-y1,2)+pow(x2-x1,2));
 }
 float deltaAngle(float from, float to){
-    //returns the angle from from to to, between -180 and +180
+    //returns the angle from "from" to "to", between -180 and +180
+    //Much much simpler than weird if statements.
     float angle = to-from;
     while(angle>180)angle-=360;
     while(angle<=-180)angle+=360;
     return angle;
 }
 
+
 // DATA LOGGING ###############################################################
-// functions for displaying stuff on screen and logging to the SD card:
+// Functions for displaying stuff on screen and logging to the SD card.
+// Accept a string and 0-4 floating point numbers to document.
+
 void doc(const char *text){
     SD.Printf(FRMT, TimeNow()-runBeginTime);
     SD.Printf(text); LCD.Write(text); LCD.Write(" ");
     SD.Printf("\r\n"); LCD.Write('\n');
+    //Fun fact: Windows doesn't recognize "\n" as a line break,
+    //  but it does recognize "\r\n",
+    //  so you can open these files straight in Notepad.
+    //If you're an FEH TA/Instructor reading this, tell future students.
 }
 void doc(const char *text, float a){
     SD.Printf(FRMT, TimeNow()-runBeginTime);
