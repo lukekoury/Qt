@@ -36,7 +36,7 @@ struct POS{
 } Robot;
 
 float cdsControl, redControl; //baseline voltages for comparison
-float startX, startY; //the "tare" that will make (0,0) be the starting position.
+float startX, startY, startHeading; //the "tare" that will make (0,0) be the starting position.
 float crankX, crankY, wrenchX, wrenchY; //Calibration waypoints
 int fuelType;
 float crankPosition; //current crank orientation in degrees
@@ -112,19 +112,13 @@ float deltaAngle(float from, float to);
 // OVERALL PROCEDURE ##########################################################
 
 int main(){
-
-//    SD.OpenLog();
-//    Robot = {0,0,0,0};
-//    razzleDazzle(0,20,90);
-//    return 0;
-
     setupRun();
 
+    //############################################################
+    //# THE MAIN PROGRAM #############################################
+    //####################################################################
 
-    //######################################################
-    //# THE MAIN PROGRAM #######################################
-    //##############################################################
-
+    doc("MOVINGDOWN");
     moveBlindTo(0,-8,1);
 
     int color = OFF;
@@ -135,108 +129,159 @@ int main(){
         Sleep(0.8);
         updatePosition();
     }
-
+    doc("GOT COLOR, PUSHING BUTTONS");
 
     //Pusher centered 0.5 inches to the left of robot center
     //Buttons at 8.75 +/- 3.25,
     //so buttons are centered on pusher at x=(6 | 9.25 | 11.5)
-    float awayFromCenter=3.25/2;
+    float awayFromCenter=3.25*0.5;
     switch(color){
         //hit the red/blue button
         case REDLIGHT:
             LCD.Clear(RED);
             moveBlindTo(9.25-awayFromCenter,-8.5,.5);
-            pushToward(9.25-awayFromCenter,-13,.8,0.6);
+            pushToward(9.25-awayFromCenter,-15,.8,0.6);
         break;
         case BLUELIGHT:
             LCD.Clear(BLUE);
             moveBlindTo(9.25+awayFromCenter,-8.5,.5);
-            pushToward(9.25+awayFromCenter,-13,.8,0.6);\
+            pushToward(9.25+awayFromCenter,-15,.8,0.6);\
         break;
     }
-    while(RPS.IsDeadzoneActive()!=2){
+    doc("HIT THE ONE BUTTON, GOING FOR WHITE");
+    float startTime=TimeNow();
+    while(RPS.IsDeadzoneActive()==0){ //haven't pushed it
         switch(color){
-        //hold the white button
+        //hold the white button.
+        //Case distinction in case we want to aim toward the safe side
             case REDLIGHT:
-                pushToward(9.25,-13,.8,0.2);
+                pushToward(9.25-awayFromCenter/4.0,-15,.5,0.2);
             break;
             case BLUELIGHT:
-                pushToward(9.25,-13,.8,0.2);
+                pushToward(9.25+awayFromCenter/4.0,-15,.5,0.2);
+            break;
+        }
+        if(RPS.IsDeadzoneActive()!=0) break;
+        moveComponents(0,1,1);
+    }
+    doc("TOUCHED WHITE", startTime-TimeNow());
+    while(RPS.IsDeadzoneActive()!=2){ //until activated
+        switch(color){
+        //hold the white button.
+        //Case distinction in case we want to aim toward the safe side
+            case REDLIGHT:
+                pushToward(9.25-awayFromCenter/4.0,-15,.5,0.2);
+            break;
+            case BLUELIGHT:
+                pushToward(9.25+awayFromCenter/4.0,-15,.5,0.2);
             break;
         }
         updatePosition();
     }
-
-    moveComponents(0,5,1);      //away from button board
-    moveTo(wrenchX,wrenchY,3);  //line up East-West for lever
+    doc("PUSHED FOR", TimeNow()-startTime);
+    doc("AWAY FROM BOARD");
+    moveComponents(0,4,1);      //away from button board
+    moveBlindTo(9.25-16,Robot.y,1);
+    doc("LINE UP FOR LEVER");
+    moveTo(wrenchX+1,wrenchY,3);  //line up East-West for lever
+    doc("LINE UP N/S");
     movementEndTime=TimeNow()+8;
-        moveTo(wrenchX,wrenchY-10,2); //up to lever
-    pushToward(-1.79,-22.1,1,1); //push lever
+        moveTo(wrenchX-3.0,wrenchY-10,4); //up to lever
+    doc("PUSHING LEVER");
+    pushToward(-1.79,-22.1,1,0.8); //push lever
     halt();
+    doc("AWAY FROM LEVER");
     moveComponents(-3,0,1); //back up
     moveComponents(0,5,1);  //move up to not run into lever again
 
-
+    doc("LINING UP N/S W/WRENCH");
     moveTo(wrenchX+2.5,wrenchY,0.5); //Move over to wrench
     lowerForkLift();
     rotateTo(0,2); //line up with wrench
-    //Sleep(0.8); //lets RPS account for new heading. Remove?
+    doc("INSERTING FORKLIFT");
     moveTo(wrenchX,wrenchY,0.5); // insert into wrench
     raiseForkLift();
 
+    doc("MOVING TO BASE OF RAMP");
     moveComponents(0,3,1); //avoid running into wrench place
     moveBlindTo(-12,-4.5,1); //base of ramp
+    doc("MOVING UP RAMP");
+
     moveComponents(0,12,1);     //up ramp
     updatePosition();
-    moveTo(-12,15,4); // make sure up ramp
+    moveTo(-13,15,4); // make sure up ramp
 
-    moveTo(0,27.5,1); //to center of top
+    doc("MOVING TO CENTER");
+    moveTo(0,27.5,0.5); //to center of top
+    while(updatePosition()==NORPS){
+        while(updatePosition()==NORPS){
+            moveComponents(1,-1,0.5);
+        }
+        moveTo(0,27.5,0.5); //to center of top
+    }
+    doc("LINING UP TO DEPOSIT");
     rotateTo(-45,2); //line up to deposit wrench
-    moveTo(-9, crankY, 1); //up to garage
+    moveBlindTo(-9, crankY, 1.0); //up to garage
+    doc("DEPOSITING");
     lowerForkLift();
+    doc("LEAVING GARAGE");
     moveComponents(3,-3,1); // out of garage
     forkLift.SetDegree(90);
-    moveTo(0,27.5,2); //to center of top
 
-
+    moveTo(crankX-8,crankY-8,2); //to center of top
+    float startAngle, endAngle;
     switch(fuelType){
         case OCTANE:
-            crankyBoi.SetDegree(0);
-            crankPosition=0;
-            moveTo(crankX-2,crankY-2,0.5); //move to crank
-            rotateTo(-45,3);
-            movementEndTime=TimeNow()+8;
-                moveTo(crankX,crankY,0.5); //move to crank
-            setCrank(180);
-            Sleep(.8);
+            doc("OCTANE");
+            startAngle=0;
+            endAngle=180;
         break;
         case NITRO:
-            crankyBoi.SetDegree(180);
-            crankPosition=180;
-            moveTo(crankX-2,crankY-2,0.5); //move to crank
-            rotateTo(-45,3);
-            movementEndTime=TimeNow()+8;
-                moveTo(crankX,crankY,0.5); //move to crank
-            setCrank(0);
-            Sleep(.8);
+            doc("NITRO");
+            startAngle=180;
+            endAngle=0;
         break;
     }
-
-    moveComponents(-3,-3,.5);
+    doc("MOVING TO CRANK");
+    crankyBoi.SetDegree(startAngle);
+    crankPosition=startAngle;
+    moveTo(crankX-2.5,crankY-2.5,0.5); //move to crank
+    rotateTo(-45,3);
     movementEndTime=TimeNow()+8;
-    moveTo(0,27.5,2); //to center of top
+        moveTo(crankX,crankY,0.5); //move to crank
+
+    setCrank(endAngle);
+    Sleep(.8);
+
+    doc("LEAVING CRANK");
+    moveComponents(-1,-1,.5);
+    moveComponents(-7,-7,1.0);
     crankyBoi.SetDegree(90);
-    moveTo(12,14,2);    //approach ramp
-    rotateTo(0,20);    //get level
+
+    doc("GOING TO RAMP");
+    movementEndTime=TimeNow()+8;
+        moveTo(12,14,2);    //approach ramp TODO: CONSIDER BLIND
+    rotateBy(deltaAngle(Robot.heading,0),0.4);    //get level
     moveTo(12,-5,3);    //descend ramp
-    moveBlindTo(0,-5,1);     //get to center
-    moveTo(0,9,1);      //smack the button
+    for(int i=0; i<10; i++){
+        if(updatePosition()!=NORPS) break;
+        Sleep(20);
+    }
 
 
+    doc("GOING TO END BUTTON");
+    while(true){
+        moveBlindTo(0,-5.5,1);     //get to center
+        movementEndTime=TimeNow()+4;
+        moveTo(0,9,1);      //smack the button
+        //PROGRAM SHOULD END HERE
+        moveComponents(0,-3,1);
+    }
 
-    //##############################################################
-    //##########################################################
-    //######################################################
+    LCD.Clear(YELLOW);
+    //####################################################################
+    //################################################################
+    //############################################################
 
 
 
@@ -251,7 +296,7 @@ int main(){
 void setupRun(){
     //forkLift.TouchCalibrate();
     //crankyBoi.TouchCalibrate();
-    forkLift.SetMin(690); forkLift.SetMax(2250);
+    forkLift.SetMin(690); forkLift.SetMax(2215);
     crankyBoi.SetMin(515); crankyBoi.SetMax(2300);
 
     RPS.InitializeTouchMenu();
@@ -261,6 +306,7 @@ void setupRun(){
     forkLift.SetDegree(180);
     crankyBoi.SetDegree(180);
     calibrateRPS();
+    movementEndTime=9999999999;
 
     LCD.Clear();
     forkLift.SetDegree(90);
@@ -271,6 +317,10 @@ void setupRun(){
     doc("Prepare for Domination.");
     //waitForTouch();
     doc("Waiting for CdS.");
+    if(updatePosition()==NORPS){
+        Robot.x=0; Robot.y=0;
+        Robot.heading=0;
+    }
     startWithCds();
     fuelType=RPS.FuelType();
 }
@@ -286,6 +336,12 @@ void motorTest(){
     setWheels(0,0,0,1); Sleep(250);
     halt();
 }
+void reverseMotorTest(){
+    forkLift.SetDegree(180);
+    crankyBoi.SetDegree(180);
+    Sleep(250);
+}
+
 void waitForTouch(){
     /*
      *  Wait until the screen is touched.
@@ -416,9 +472,10 @@ int updatePosition(){
     float y = RPS.Y()-startY;
     float heading = RPS.Heading();
     if(heading>-1){
+        heading=principal(heading-startHeading);
         if(Robot.x == x && Robot.y == y && Robot.heading == heading){
             //Do not update timestamp if RPS hasn't been updated
-            doc("RPS Not Updated");
+            doc("RPS Stayed the same");
             return OLDRPS;
         } else {
             Robot.x = x;
@@ -429,7 +486,7 @@ int updatePosition(){
             return NEWRPS;
         }
     }
-    doc("Position Update Failed: ",x,y,heading);
+    doc("RPS Update Failed: ",x,y,heading);
     return NORPS;
 }
 
@@ -520,6 +577,7 @@ void calibrateRPS(){
     waypoint wrench("Wrench",    8.4,17.9   ,160,60,160,60);
     waypoint origin("Origin",   17.1,29.0   ,160,120,160,60);
     FEHIcon::Icon motorButton, goButton;
+    bool motorsTested=false;
     motorButton.SetProperties("Motors",161,181,78,56,CYAN,CYAN);
     goButton.SetProperties("GO!",241,181,78,56,0x00FF00,0x00FF00);
     goButton.Draw();
@@ -536,12 +594,23 @@ void calibrateRPS(){
         if(goButton.Pressed(x,y,1)) break;
         if(crank.calButton.Pressed(x,y,1))      crank.calibrateHere();
         if(wrench.calButton.Pressed(x,y,1))     wrench.calibrateHere();
-        if(origin.calButton.Pressed(x,y,1))     origin.calibrateHere();
+        if(origin.calButton.Pressed(x,y,1)){
+            origin.calibrateHere();
+            float h=RPS.Heading();
+            startHeading=(h<0? 0:h);
+        }
         if(crank.revertButton.Pressed(x,y,1))   crank.revert();
         if(wrench.revertButton.Pressed(x,y,1))  wrench.revert();
         if(origin.revertButton.Pressed(x,y,1))  origin.revert();
-        if(motorButton.Pressed(x,y,1))          motorTest();
-
+        if(motorButton.Pressed(x,y,1)){
+            if(!motorsTested){
+                motorTest();
+                motorsTested=true;
+            } else {
+                reverseMotorTest();
+                motorsTested=false;
+            }
+        }
         //Display calibrations
         LCD.SetFontColor(crank.labelColor());
             LCD.WriteAt(crank.myX, 0,40);   LCD.WriteAt(crank.myY, 80,40);
@@ -551,7 +620,8 @@ void calibrateRPS(){
             LCD.WriteAt(origin.myX, 0,160); LCD.WriteAt(origin.myY, 80,160);
 
         LCD.SetFontColor(WHITE); //Display Current position
-        LCD.WriteAt(RPS.X(), 0,203); LCD.WriteAt(RPS.Y(), 80,203);
+        LCD.WriteAt(RPS.X(), 0,197); LCD.WriteAt(RPS.Y(), 80,197);
+        LCD.WriteAt(RPS.Heading(), 40,215);
         Sleep(1);
 
     }
@@ -560,7 +630,7 @@ void calibrateRPS(){
     doc("Wrench RPS", wrench.myX, wrench.myY);
     startX=origin.myX;
     startY=origin.myY;
-    doc("RPS Tare:",startX,startY);
+    doc("RPS Tare:",startX,startY,startHeading);
     crankX=crank.myX-startX;
     crankY=crank.myY-startY;
     doc("Crank Position:",crankX, crankY);
@@ -584,7 +654,7 @@ void moveTo(float x, float y, float precision){
     float distance = pythag(Robot.x,Robot.y, x, y);
     if(distance>precision && TimeNow()<=movementEndTime){
         float speedPercent=1;
-        if(distance<6) speedPercent=.3;
+        if(distance<6) speedPercent=.3; //slower if closer
         moveBlindTo(x,y,speedPercent);
         Sleep(.8); //wait for RPS to catch up
         updatePosition();
@@ -596,11 +666,12 @@ void moveTo(float x, float y, float precision){
 }
 
 void razzleDazzle(float x, float y, float heading){
+    //Rotates to heading while moving to (x,y).
     float d=pythag(Robot.x,Robot.y, x, y);
     float deltaHeading=deltaAngle(Robot.heading, heading);
     //doc("RazzleDazzle ",x,y,heading);
     if(d>3 ||  fabs(deltaHeading)>10){
-        float totalTimeEst=d/(SPEEDCONSTANT);
+        float totalTimeEst=d/(SPEEDCONSTANT*0.6);
         float spin = (deltaHeading/totalTimeEst) / ROTATIONCONSTANT;
         if(fabs(spin)>1) spin=(spin>0? 1:-1);
 
