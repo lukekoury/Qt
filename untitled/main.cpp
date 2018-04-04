@@ -26,7 +26,7 @@
 #define OCTANE 1
 #define NITRO 2
 
-#define SLEEPTIME 0.8
+#define SLEEPTIME 0.8 //Time delay for robot to stably halt and RPS to catch up
 
 using namespace std;
 
@@ -48,6 +48,7 @@ int fuelType;
 float crankPosition; //current crank orientation in degrees
 float runBeginTime=0; //when the run begins, so that the log file has times beginning then.
 float movementEndTime=9999999999; //if it gets to this time and a movement hasn't worked, stop trying.
+float addToFLWheel=0;
 
 //Drivetrain
 FEHMotor motorFL(FEHMotor::Motor0,7.2);
@@ -105,6 +106,7 @@ void moveComponents(float x, float y, float speedPercent);
 void rotateBy(float angle, float speedPercent);
 void rotateTo(float heading, float precision);
 void moveTo(float x, float y, float precision);
+void moveTo(float x, float y, float precision, float speed);
 void pushToward(float x, float y, float speedPercent, float duration);
 
 //Math functions without side effects
@@ -157,15 +159,17 @@ int main(){
         }
 
     doc("AIMING FOR WHITE ", startTime-TimeNow());
-        while(RPS.IsDeadzoneActive()==0){ //haven't pushed it
+        while(RPS.IsDeadzoneActive()==0){ //until pushed
             switch(color){
             //hold the white button.
             //Case distinction in case we want to aim toward the safe side
                 case REDLIGHT:
-                    pushToward(9.25-awayFromCenter/4.0,-15,.5,0.2);
+                    pushToward(9.25-awayFromCenter/4.0,-14,0.5,0.2);
                 break;
                 case BLUELIGHT:
-                    pushToward(9.25,-15,.5,0.35);
+                    addToFLWheel = .5;
+                    pushToward(9.25,-14,0.5,0.2);
+                    addToFLWheel = 0;
                 break;
             }
             if(RPS.IsDeadzoneActive()!=0) break;
@@ -177,12 +181,15 @@ int main(){
             //hold the white button.
             //Case distinction in case we want to aim toward the safe side
                 case REDLIGHT:
-                    pushToward(9.25-awayFromCenter/4.0,-15,.5,0.2);
+                    pushToward(9.25-awayFromCenter/4.0,-14,0.5,0.2);
                 break;
                 case BLUELIGHT:
-                    pushToward(9.25,-15,.5,0.35);
+                    addToFLWheel = 0.5;
+                    pushToward(9.25,-14,0.5,0.2);
+                    addToFLWheel = 0;
                 break;
             }
+            if(TimeNow()-startTime>30) break;
             updatePosition();
         }
         doc("PUSHED FOR", TimeNow()-startTime);
@@ -191,10 +198,10 @@ int main(){
         moveComponents(0,4,1);      //away from button board
         moveBlindTo(9.25-16,Robot.y,1);
     doc("LINE UP FOR LEVER");
-        moveTo(wrenchX+1,wrenchY,3);  //line up East-West for lever
-    doc("LINE UP N/S");
         movementEndTime=TimeNow()+8;
-            moveTo(wrenchX-3.0,wrenchY-10,4); //up to lever
+            moveTo(wrenchX+1,wrenchY,3);  //line up East-West for lever
+    doc("LINE UP N/S");
+        moveTo(wrenchX-3.0,wrenchY-10,2); //up to lever TODO: consider blind
     doc("PUSHING LEVER");
         pushToward(-1.79,-22.1,1,0.8); //push lever
         halt();
@@ -204,9 +211,9 @@ int main(){
 
     doc("LINING UP W/WRENCH");
         moveTo(wrenchX+2.5,wrenchY,0.5); //Move over to wrench
-        float forkliftEndTime=TimeNow();
+        float forkliftEndTime=TimeNow()+0.8;
         forkLift.SetDegree(180);
-        rotateTo(wrenchHeading, 2); ////////////////NEW
+        rotateTo(wrenchHeading, 2);
         while(TimeNow()<forkliftEndTime){
             Sleep(1);
         }
@@ -220,10 +227,11 @@ int main(){
     doc("MOVING UP RAMP");
         moveComponents(0,12,1);     //up ramp
         updatePosition();
+        movementEndTime = TimeNow()+8;
         moveTo(-13,15,4); // make sure up ramp
 
     doc("MOVING TO CENTER");
-        moveTo(0,27.5,0.5); //to center of top
+        moveTo(0,27.5,0.5); //to center of top TODO: bigger tolerance?
         while(updatePosition()==NORPS){
             //in case we overshoot and land in dead zone
             while(updatePosition()==NORPS){
@@ -235,7 +243,7 @@ int main(){
 
     doc("LINING UP TO DEPOSIT");
         rotateTo(-45,2); //line up to deposit wrench
-        moveBlindTo(-9, crankY, 1.0); //up to garage
+        moveBlindTo(-9+0.2, crankY+0.2, 1.0); //up to garage
     doc("DEPOSITING");
         lowerForkLift();
     doc("LEAVING GARAGE");
@@ -259,8 +267,8 @@ int main(){
         }
         crankyBoi.SetDegree(startAngle);
         crankPosition=startAngle;
-        moveTo(crankX-2.5,crankY-2.5,0.5); //move to crank
-        rotateTo(crankHeading, 3); ///////////////////////NEW
+        moveTo(crankX-2.5,crankY-2.5,0.5); //move to crank TODO:delete?
+        rotateTo(crankHeading, 3);
         movementEndTime=TimeNow()+8;
             moveTo(crankX,crankY,0.5); //move to crank
         setCrank(endAngle);
@@ -272,9 +280,10 @@ int main(){
         crankyBoi.SetDegree(90);
 
     doc("GOING TO RAMP");
+        rotateBy(deltaAngle(Robot.heading,0),0.4);    //get level TODO: consider faster
         movementEndTime=TimeNow()+8;
-            moveTo(12,14,2);    //approach ramp TODO: CONSIDER BLIND
-        rotateBy(deltaAngle(Robot.heading,0),0.4);    //get level
+            moveBlindTo(12,14,1.0);    //approach ramp TODO: CONSIDER BLIND
+        //rotateBy(deltaAngle(Robot.heading,0),0.4);    //get level TODO: consider faster
         moveTo(12,-5,3);    //descend ramp
         for(int i=0; i<10; i++){
             //please let RPS respond so we don't go the wrong direction
@@ -317,7 +326,7 @@ void setupRun(){
     crankyBoi.SetMin(515); crankyBoi.SetMax(2300);
 
     RPS.InitializeTouchMenu();
-    SD.OpenLog();
+    //SD.OpenLog();
     doc("Voltage: ", Battery.Voltage());
 
     forkLift.SetDegree(180);
@@ -467,14 +476,13 @@ int getColor(){
 void raiseForkLift(){
     for(int i=180; i>95; i--){
         forkLift.SetDegree(i);
-        Sleep(12);
+        Sleep(8);
     }
 }
 void lowerForkLift(){
-    for(int i=95; i<180; i++){
-        forkLift.SetDegree(i);
-        Sleep(12);
-    }
+    float endTime = TimeNow()+0.4;
+    forkLift.SetDegree(180);
+    while(TimeNow()<endTime);
 }
 
 void setCrank(float pos){
@@ -766,7 +774,7 @@ float setVelocityComponents(float right, float forward, float speedPercent){
      */
 
     //Wheel values based on orientation of wheels:
-    float fl=-forward-right;
+    float fl=-forward-right + addToFLWheel;
     float fr=+forward-right;
     float bl=-forward+right;
     float br=+forward+right;
@@ -809,7 +817,7 @@ void moveBlind(float angle, float distance, float speedPercent){
     float endTime = TimeNow()+distance/speed;
     while(TimeNow()<endTime){
         updateOnlyHeading(); /////////NEW
-        Sleep(1);
+        Sleep(2);
     }
     halt();
 
@@ -848,11 +856,31 @@ void moveTo(float x, float y, float precision){
     float distance = pythag(Robot.x,Robot.y, x, y);
     if(distance>precision && TimeNow()<=movementEndTime){
         float speedPercent=1;
-        if(distance<6) speedPercent=.3; //slower if closer
+        if(distance<6) speedPercent=.5; //slower if closer TODO: Make faster?
         moveBlindTo(x,y,speedPercent);
         Sleep(SLEEPTIME); //wait for RPS to catch up
         updatePosition();
         moveTo(x, y, precision); //Recursion is always good and cool, right?
+    } else {
+        //Finish moving
+        movementEndTime=99999999999;  //so as not to affect the next movement
+    }
+}
+
+void moveTo(float x, float y, float precision, float speed){
+    /*
+     *  Moves the robot to within precision of (x,y), at speed
+     *  Is the most frequently called function in the main program!
+     */
+
+    doc("moveTo", x, y, precision);
+    float distance = pythag(Robot.x,Robot.y, x, y);
+    if(distance>precision && TimeNow()<=movementEndTime){
+        float speedPercent=speed;
+        moveBlindTo(x,y,speedPercent);
+        Sleep(SLEEPTIME); //wait for RPS to catch up
+        updatePosition();
+        moveTo(x, y, precision, speed); //Recursion is always good and cool, right?
     } else {
         //Finish moving
         movementEndTime=99999999999;  //so as not to affect the next movement
@@ -894,7 +922,7 @@ void rotateBy(float angle, float speedPercent){
     float timeEnd=TimeNow()+fabs(angle)/(speedPercent*ROTATIONCONSTANT);
     while(TimeNow()<timeEnd){
         updateOnlyXY();
-        Sleep(1);
+        Sleep(2);
     }
     halt();
     Robot.heading=principal(Robot.heading+angle);
